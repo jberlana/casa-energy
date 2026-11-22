@@ -1,73 +1,73 @@
 # Setup and operation
 
-## Conectar una instalación propia
+## Connect your own installation
 
-La vinculación inicial de cuentas y puentes no está automatizada. Cada usuario debe obtener sus
-propias autorizaciones y mantenerlas fuera del repositorio. No es una integración oficial.
+Initial account authorization and bridge pairing are not automated. Each user must obtain their
+own authorizations and keep them outside the repository. This is not an official integration.
 
-- **Tado X:** configurar `home_id`, `client_id` y `auth_path` en el archivo privado `config.json` del
-  recolector. Este código puede renovar una autorización existente; no incluye el inicio OAuth.
-  La configuración por defecto no contiene ningún identificador de vivienda ni cliente.
-- **Hue:** el archivo privado `~/.config/tado-experiment/hue-auth.json` necesita `ip`, `host`,
-  `username`, `certificate_pem`, `temperature_resource_id` y `connectivity_resource_id`.
-  Se valida el certificado del puente emparejado.
-- **Tiempo:** configurar `latitude` y `longitude` en el `config.json` privado del directorio de
-  `TadoEnvironment`. No hay coordenadas preconfiguradas. La zona horaria del prototipo es
-  `Europe/Madrid`; adaptarla de forma consistente si se utiliza en otra zona.
-- **Octopus España:** cliente experimental de consultas y descarga de documentos. La sesión se
-  almacena fuera del proyecto. El acceso antiguo con contraseña puede dejar de estar disponible;
-  comprobar los métodos admitidos por el proveedor antes de utilizarlo. No generar claves ni
-  modificar contratos desde el cliente. El modelo de consumo estructurado requiere validación
-  frente a los documentos originales; no se considera automáticamente consumo medido.
+- **Tado X:** configure `home_id`, `client_id` and `auth_path` in the collector's private
+  `config.json`. This code can renew an existing authorization; it does not include the OAuth login flow.
+  Default configuration contains no home or client identifier.
+- **Hue:** the private `~/.config/tado-experiment/hue-auth.json` file needs `ip`, `host`,
+  `username`, `certificate_pem`, `temperature_resource_id` and `connectivity_resource_id`.
+  The paired bridge's certificate is validated.
+- **Weather:** configure `latitude` and `longitude` in the private `config.json` in the
+  `TadoEnvironment` directory. No coordinates are preconfigured. The prototype uses the
+  `Europe/Madrid` time zone; adapt it consistently when using another zone.
+- **Octopus Spain:** experimental client for queries and document downloads. The session is
+  stored outside the project. Legacy password login may become unavailable;
+  check the methods supported by the provider before use. Do not generate keys or modify
+  contracts through this client. The structured consumption model requires validation against
+  the original documents; it is not automatically considered measured consumption.
 
-La forma mínima de configuración se documenta en [examples/collector-config.example.json](../examples/collector-config.example.json).
-Los valores vacíos deben sustituirse únicamente en un archivo local ignorado por Git.
+The minimum configuration is documented in [examples/collector-config.example.json](../examples/collector-config.example.json).
+Replace empty values only in a local file ignored by Git.
 
-## Servicios y límites
+## Services and limits
 
-Los módulos de instalación de `scripts/macos/`
-crean LaunchAgents del usuario. Revisarlos y configurar las fuentes antes de ejecutarlos.
-`python3 -m scripts.macos.prepare_wake_install` prepara un instalador separado de despertares que requiere administrador;
-no lo ejecuta automáticamente. Revisar los horarios de ejemplo para cada instalación.
+Installation modules under `scripts/macos/` create user LaunchAgents.
+Review them and configure data sources before running them.
+`python3 -m scripts.macos.prepare_wake_install` prepares a separate wake installer that requires administrator access;
+it does not run it automatically. Review the example schedules for each installation.
 
-El Mac necesita estar encendido y con sesión iniciada. La pantalla bloqueada no detiene los servicios;
-la suspensión impide servir la web. No se garantiza despertar mediante Tailscale.
+The Mac must be powered on with a user signed in. Locking the screen does not stop services;
+sleep prevents the web interface from being served. Wake through Tailscale is not guaranteed.
 
-El recolector Tado limita peticiones y almacenamiento y conserva el historial ante errores.
-La actualización desde la web tiene un máximo adicional de cuatro intentos diarios, enfriamiento,
-reserva de cuota para las recogidas programadas y exclusión entre pestañas. Nunca envía órdenes
-para cambiar temperaturas. Los recolectores son procesos separados de la API web.
-Consultar [scripts/README.md](../scripts/README.md) para los comandos de instalación.
+The Tado collector limits requests and storage and preserves history when errors occur.
+Web refresh has an additional maximum of four daily attempts, a cooldown,
+a quota reserve for scheduled collection and mutual exclusion between tabs. It never sends
+commands to change temperatures. Collectors run as processes separate from the web API.
+See [scripts/README.md](../scripts/README.md) for installation commands.
 
-## Actualizar desde el menú
+## Refresh from the menu
 
-El menú de tres puntos de la barra superior permite actualizar Tado, Hue u Octopus por separado
-en «Mi casa». En demo las acciones están desactivadas. El resultado se muestra dentro del menú;
-al terminar se vuelven a consultar los datos locales sin cambiar el zoom ni la habitación.
+The three-dot menu in the header refreshes Tado, Hue or Octopus separately in
+"My home" mode. Actions are disabled in the demo. Results appear inside the menu;
+on completion, local data is queried again without changing the zoom or selected room.
 
-- **Tado:** consulta aunque los datos estén recientes, pero conserva la pausa de 30 minutos, el
-  máximo compartido de cuatro intentos diarios desde la web y la reserva para recogidas programadas.
-  Los límites del proveedor y la exclusión con la calibración siguen vigentes.
-- **Hue:** consulta solo el sensor emparejado, sin solicitar meteorología. Tiene una pausa de un
-  minuto y comparte el bloqueo del recolector de entorno. Una lectura desconectada no es un éxito.
-- **Octopus:** usa la sesión privada existente en `~/.config/octopus-experiment` (`OCTOPUS_ROOT`
-  permite otra ubicación privada). Descubre una cuenta única y un ledger de gas inequívoco. Si hay
-  varios, definir `account` y `ledger` en el `config.json` privado de ese directorio; nunca en Git.
-  Las sesiones caducadas se renuevan solo si el proveedor permite hacerlo; no hay login en la web.
+- **Tado:** queries even when data is recent, while preserving the 30-minute cooldown,
+  the shared maximum of four daily web attempts and the reserve for scheduled collection.
+  Provider limits and mutual exclusion with calibration still apply.
+- **Hue:** queries only the paired sensor, without requesting weather data. It has a one-minute
+  cooldown and shares the environment collector lock. A disconnected reading is not a success.
+- **Octopus:** uses the existing private session in `~/.config/octopus-experiment` (`OCTOPUS_ROOT`
+  allows another private location). It discovers a single account and an unambiguous gas ledger.
+  If there are several, set `account` and `ledger` in that directory's private `config.json`, never in Git.
+  Expired sessions are renewed only if the provider allows it; there is no web login.
 
-Octopus consulta una página de hasta 20 facturas y descarga hasta tres PDF pendientes por acción.
-El catálogo privado indica si hay más histórico o documentos pendientes. Otra actualización continúa
-los documentos de esa página sin duplicarlos. No se considera una importación completa del histórico.
-Se conserva un catálogo mínimo y documentos en `catalog.json` y `documents/` dentro de su directorio
-privado. No se guardan enlaces firmados. Cada ejecución limita las consultas GraphQL (incluida
-autenticación) a 12, cada PDF a 8 MiB y el almacenamiento total a 64 MiB, sin borrar archivos al llenarse.
-La pausa entre acciones de Octopus es de 15 minutos.
+Octopus queries one page of up to 20 invoices and downloads up to three pending PDFs per action.
+The private catalog indicates whether more history or documents remain. Another refresh continues
+the documents on that page without duplicating them. This is not a complete history import.
+A minimal catalog and documents are kept in `catalog.json` and `documents/` within the private
+directory. Signed links are not stored. Each run limits GraphQL queries, including authentication,
+to 12, each PDF to 8 MiB and total storage to 64 MiB, without deleting files when full.
+The cooldown between Octopus actions is 15 minutes.
 
-**Descargar una factura no verifica sus importes.** Las facturas verificadas que utiliza la gráfica
-se conservan intactas; el menú indica que los documentos quedan pendientes de verificación. No se
-modifican contratos, lecturas del contador, pagos ni consignas de calefacción.
+**Downloading an invoice does not verify its amounts.** The verified invoices used by the chart
+remain intact; the menu indicates that documents are awaiting verification. Contracts, meter
+readings, payments and heating targets are not modified.
 
-Todas las acciones comparten un único trabajo con la actualización automática. El proceso manual
-tiene un máximo de 190 segundos; los fallos y pausas se muestran sin exponer errores privados del
-proveedor. Tras actualizar el código de una instalación, reinstalar el servicio web para copiar
-también los nuevos módulos; no es necesario reinstalar los recolectores existentes.
+All actions share a single job with automatic refresh. The manual process has a maximum duration
+of 190 seconds; failures and cooldowns are shown without exposing private provider errors.
+After updating an installation's code, reinstall the web service to copy the new modules as well;
+the existing collectors do not need to be reinstalled.

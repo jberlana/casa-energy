@@ -61,32 +61,32 @@ export function SessionDetail({ data, range, selectedId, expanded, onExpandedCha
   const visible = data?.sessions.filter(s => s.end > range.min && s.start < range.max) ?? [];
   const selected = visible.find(s => s.id === selectedId) ?? visible[visible.length-1];
   const overview = range.max-range.min > 3*DAY;
-  return <section className="session-section" aria-label="Sesiones de demanda">
-    <div className="section-title"><h2><Flame size={16} /> Sesiones de calefacción</h2><span>{failed ? 'No disponibles' : !current ? 'Actualizando…' : `${visible.length} en el intervalo`}</span></div>
-    {failed ? <p role="alert">No se pudieron leer las sesiones. <button className="text-button" onClick={retry}>Reintentar</button></p> : !current ?
-      <p className="session-empty">Calculando las sesiones del intervalo…</p> : !selected ?
-      <p className="session-empty">{data.known.length ? 'No hay demanda registrada en este intervalo.' : 'Sin estado suficiente para identificar sesiones.'}</p> : overview ?
-      <div className="session-overview"><strong>{elapsed(data.days.reduce((n,d)=>n+d.demandMs,0))}</strong><span>de demanda conjunta · los solapamientos cuentan una vez</span><button onClick={() => onZoom(selected.start-3_600_000, selected.end+3_600_000)}>Explorar la última sesión</button></div> : <>
-      <div className="session-picker" role="group" aria-label="Elegir sesión">
+  return <section className="session-section" aria-label="Demand sessions">
+    <div className="section-title"><h2><Flame size={16} /> Heating sessions</h2><span>{failed ? 'Unavailable' : !current ? 'Refreshing…' : `${visible.length} in this interval`}</span></div>
+    {failed ? <p role="alert">Could not read sessions. <button className="text-button" onClick={retry}>Retry</button></p> : !current ?
+      <p className="session-empty">Calculating sessions for this interval…</p> : !selected ?
+      <p className="session-empty">{data.known.length ? 'No demand recorded in this interval.' : 'Not enough state data to identify sessions.'}</p> : overview ?
+      <div className="session-overview"><strong>{elapsed(data.days.reduce((n,d)=>n+d.demandMs,0))}</strong><span>of combined demand · overlaps count once</span><button onClick={() => onZoom(selected.start-3_600_000, selected.end+3_600_000)}>Explore the latest session</button></div> : <>
+      <div className="session-picker" role="group" aria-label="Choose a session">
         {visible.map(s => <button key={s.id} aria-pressed={s.id === selected.id} onClick={() => onSelect(s.id)}>
           <span>{date(s.start, {day:'numeric',month:'short'})}</span>{clock(s.start)} – {clock(s.end)}
         </button>)}
       </div>
       <details className="session-inspector" open={expanded} onToggle={e => onExpandedChange(e.currentTarget.open)}>
-        <summary className="session-summary"><span><strong>{elapsed(selected.durationMs)}</strong> de demanda conjunta</span><span>Detalle <ChevronDown size={14}/></span></summary>
+        <summary className="session-summary"><span><strong>{elapsed(selected.durationMs)}</strong> of combined demand</span><span>Details <ChevronDown size={14}/></span></summary>
         <div className="session-facts">
-          <div><span>Demanda conjunta</span><strong>{elapsed(selected.durationMs)}</strong><small>{selected.partialStart || selected.partialEnd ? 'Tramo incompleto · límites sin confirmar' : 'Inicio y fin observados'}</small></div>
-          <div><span>Respuesta en {roomName}</span><strong>{selected.response.delta == null ? '—' : `${selected.response.delta > 0 ? '+' : ''}${fmt(selected.response.delta,2)} °C`}</strong><small>{selected.response.first && selected.response.last ? `${fmt(selected.response.first[1])}° (${clock(selected.response.first[0])}) → ${fmt(selected.response.last[1])}° (${clock(selected.response.last[0])})` : 'Sin lecturas durante la sesión'}</small>{!selected.response.complete && <small>Lecturas insuficientes o con huecos</small>}{!selected.rooms.some(r=>r.id===data.room) && <small>No solicitó calor en esta sesión</small>}</div>
-          <div className="session-cost"><span>{data.source === 'demo' ? 'Coste simulado' : 'Coste de esta sesión'}</span><strong>{selected.cost ? `${fmt(selected.cost.low,2)}–${fmt(selected.cost.high,2)} €` : '—'}</strong><small>{selected.cost ? 'Ejemplo de consumo variable' : 'Sin una factura coincidente para calibrar'}</small></div>
+          <div><span>Combined demand</span><strong>{elapsed(selected.durationMs)}</strong><small>{selected.partialStart || selected.partialEnd ? 'Incomplete interval · boundaries unconfirmed' : 'Start and end observed'}</small></div>
+          <div><span>Response in {roomName}</span><strong>{selected.response.delta == null ? '—' : `${selected.response.delta > 0 ? '+' : ''}${fmt(selected.response.delta,2)} °C`}</strong><small>{selected.response.first && selected.response.last ? `${fmt(selected.response.first[1])}° (${clock(selected.response.first[0])}) → ${fmt(selected.response.last[1])}° (${clock(selected.response.last[0])})` : 'No readings during this session'}</small>{!selected.response.complete && <small>Insufficient readings or gaps</small>}{!selected.rooms.some(r=>r.id===data.room) && <small>No heat requested during this session</small>}</div>
+          <div className="session-cost"><span>{data.source === 'demo' ? 'Simulated cost' : 'Session cost'}</span><strong>{selected.cost ? `${fmt(selected.cost.low,2)}–${fmt(selected.cost.high,2)} €` : '—'}</strong><small>{selected.cost ? 'Illustrative variable consumption' : 'No matching invoice for calibration'}</small></div>
         </div>
-        <details className="room-demands"><summary>Habitaciones que solicitaron calor <ChevronDown size={15} /></summary>
+        <details className="room-demands"><summary>Rooms that requested heat <ChevronDown size={15} /></summary>
           <ul>{selected.rooms.map(r=><li key={r.id}><span>{r.name}</span><strong>{elapsed(r.demandMs)}</strong></li>)}</ul>
-          <p>Los tiempos por habitación se solapan. La demanda no confirma llama ni consumo.</p>
+          <p>Room durations overlap. Demand does not confirm burner operation or consumption.</p>
         </details>
-        <button className="text-button" onClick={()=>onZoom(selected.start-3_600_000,selected.end+3_600_000)}><Maximize2 size={14}/> Ampliar sesión</button>
+        <button className="text-button" onClick={()=>onZoom(selected.start-3_600_000,selected.end+3_600_000)}><Maximize2 size={14}/> Zoom to session</button>
       </details>
     </>}
-    {data?.source === 'demo' && <details className="estimate-method"><summary>Cómo se simula el coste</summary><p>Ejemplo ilustrativo: 8–12 kW de potencia de entrada de gas durante la demanda, a 0,08 €/kWh. No utiliza tu tarifa ni un modelo calibrado de tu caldera. Excluye costes fijos e impuestos. El intervalo representa estos supuestos, no una confianza estadística.</p></details>}
+    {data?.source === 'demo' && <details className="estimate-method"><summary>How cost is simulated</summary><p>Illustrative example: 8–12 kW of gas input during demand, at €0.08/kWh. It does not use your tariff or a calibrated boiler model. Fixed charges and taxes are excluded. The range represents these assumptions, not statistical confidence.</p></details>}
   </section>;
 }
 
@@ -107,20 +107,20 @@ export function Invoices({ historyStart, historyEnd }: { historyStart: number; h
     get<{invoices:Invoice[]}>('/api/invoices',controller.signal).then(r=>{if(!controller.signal.aborted)setInvoices(r.invoices);}).catch(()=>{if(!controller.signal.aborted)setFailed(true);});
     return ()=>controller.abort();
   },[retry, revision]);
-  return <details className="invoices" aria-label="Facturas de gas verificadas">
-    <summary className="section-title"><h2><ReceiptText size={17}/> Facturas de gas</h2><span>{invoices ? `${invoices.length} · Octopus` : 'Octopus'} <ChevronDown size={15}/></span></summary>
-    {failed ? <p role="alert">No se pudieron cargar las facturas. <button className="text-button" onClick={()=>setRetry(v=>v+1)}>Reintentar</button></p> : invoices === null ? <p>Cargando facturas…</p> : !invoices.length ? <p>Todavía no hay facturas verificadas.</p> : <>
+  return <details className="invoices" aria-label="Verified gas invoices">
+    <summary className="section-title"><h2><ReceiptText size={17}/> Gas invoices</h2><span>{invoices ? `${invoices.length} · Octopus` : 'Octopus'} <ChevronDown size={15}/></span></summary>
+    {failed ? <p role="alert">Could not load invoices. <button className="text-button" onClick={()=>setRetry(v=>v+1)}>Retry</button></p> : invoices === null ? <p>Loading invoices…</p> : !invoices.length ? <p>No verified invoices yet.</p> : <>
       <div className="invoice-list">{invoices.map(b=>{
         const overlap = b.period_start <= new Intl.DateTimeFormat("sv-SE", {timeZone:"Europe/Madrid"}).format(historyEnd) && b.period_end >= new Intl.DateTimeFormat("sv-SE", {timeZone:"Europe/Madrid"}).format(historyStart);
-        const parts = [['Consumo',b.variable_eur],['Fijo',b.fixed_eur],['Otros',b.other_eur],['Impuestos',b.tax_eur]] as const;
+        const parts = [['Consumption',b.variable_eur],['Fixed',b.fixed_eur],['Other',b.other_eur],['Taxes',b.tax_eur]] as const;
         return <details className="invoice-row" key={b.period_start}>
-          <summary><span className="invoice-period">{dayLabel(b.period_start)} – {dayLabel(b.period_end)}<small>{b.billed_days} días · {overlap ? 'Cruce de cobertura pendiente' : 'Sin histórico Tado coincidente'}</small></span><span className="invoice-quantity">{fmt(Number(b.consumption_kwh),2)}<small> kWh</small></span><strong>{euros(Number(b.total_eur))}</strong><ChevronDown size={16}/></summary>
+          <summary><span className="invoice-period">{dayLabel(b.period_start)} – {dayLabel(b.period_end)}<small>{b.billed_days} days · {overlap ? 'Coverage comparison pending' : 'No matching Tado history'}</small></span><span className="invoice-quantity">{fmt(Number(b.consumption_kwh),2)}<small> kWh</small></span><strong>{euros(Number(b.total_eur))}</strong><ChevronDown size={16}/></summary>
           <div className="invoice-breakdown"><div className="invoice-bar" aria-hidden="true">{parts.map(([label,amount],i)=><i key={label} className={`part-${i}`} style={{width:`${Number(amount)/Number(b.total_eur)*100}%`}}/>)}</div>
             <dl>{parts.map(([label,amount],i)=><div key={label}><dt><i className={`part-${i}`}/>{label}</dt><dd>{euros(Number(amount))}</dd></div>)}</dl>
-            <p>{fmt(Number(b.consumption_m3),0)} m³ facturados. El consumo puede incluir agua caliente y otros usos. Fijo y otros cargos no se atribuyen a sesiones.</p>
+            <p>{fmt(Number(b.consumption_m3),0)} m³ billed. Consumption may include hot water and other uses. Fixed and other charges are not attributed to sessions.</p>
           </div>
         </details>;
-      })}</div><p className="invoice-note">Importadas de PDF · histórico parcial, sin actualización automática.</p>
+      })}</div><p className="invoice-note">Imported from PDFs · partial history, no automatic refresh.</p>
     </>}
   </details>;
 }

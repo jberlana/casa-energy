@@ -71,7 +71,7 @@ function App() {
       } catch (e) {
         if (active)
           setError(
-            "No se puede leer el histórico local. Comprueba que el servicio esté disponible.",
+            "Cannot read local history. Check that the service is available.",
           );
       }
     };
@@ -138,7 +138,7 @@ function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <a className="brand" href="/" aria-label="Casa, inicio">
+        <a className="brand" href="/" aria-label="Casa, home">
           <span className="brand-mark">
             <House size={22} strokeWidth={1.8} />
           </span>
@@ -148,14 +148,14 @@ function App() {
           <label
             className={"source-switch " + (source === "demo" ? "demo" : "")}
           >
-            <span className="sr-only">Origen de los datos</span>
+            <span className="sr-only">Data source</span>
             {source === "demo" ? <Beaker size={15} /> : <Activity size={15} />}
             <select
               value={source}
               onChange={(e) => setSource(e.target.value as Source)}
             >
-              <option value="real">Mi casa</option>
-              <option value="demo">Demo · 6 meses</option>
+              <option value="real">My home</option>
+              <option value="demo">Demo · 6 months</option>
             </select>
             <ChevronDown size={14} />
           </label>
@@ -165,11 +165,11 @@ function App() {
       {source === "demo" && (
         <div className="demo-banner">
           <Beaker size={16} />
-          <strong>Datos simulados</strong>
+          <strong>Simulated data</strong>
         </div>
       )}
       <div className="workspace">
-        <nav className="room-nav" aria-label="Habitaciones">
+        <nav className="room-nav" aria-label="Rooms">
             {meta?.rooms.map((item) => (
               <button
                 className={"room " + (item.id === room ? "selected" : "")}
@@ -178,7 +178,7 @@ function App() {
                 onClick={() => setRoom(item.id)}
               >
                 <span className="room-icon">
-                  {item.name === "Salón" ? <Sofa size={18}/> : item.name === "Dormitorio" ? <BedDouble size={18}/> : item.name === "Habitación 2" ? <Blocks size={18}/> : <Monitor size={18}/>}
+                  {item.name === "Living room" ? <Sofa size={18}/> : item.name === "Bedroom" ? <BedDouble size={18}/> : item.name === "Room 2" ? <Blocks size={18}/> : <Monitor size={18}/>}
                 </span>
                 <span className="room-title">
                   {item.name}
@@ -194,23 +194,23 @@ function App() {
           {error ? (
             <div className="error" role="alert">
               {error}
-              <button onClick={() => setRetry((n) => n + 1)}>Reintentar</button>
+              <button onClick={() => setRetry((n) => n + 1)}>Retry</button>
             </div>
           ) : !meta ? (
             <div className="initial-loading">
               <div className="skeleton title" />
               <div className="skeleton graph" />
-              <p>Cargando el historial de casa…</p>
+              <p>Loading home history…</p>
             </div>
           ) : (
             <>
               <div className="page-heading">
                 <div className="room-heading" key={room}>
-                  <h1>{selected?.name ?? "Calefacción"}</h1>
+                  <h1>{selected?.name ?? "Heating"}</h1>
                   <div className="freshness">
                     <Clock3 size={14} />
                     <span>
-                      {selected?.observed ? `Última lectura · ${date(selected.observed)}` : "Sin lecturas"}
+                      {selected?.observed ? `Latest reading · ${date(selected.observed)}` : "No readings"}
                     </span>
                   </div>
                 </div>
@@ -219,7 +219,7 @@ function App() {
                     <span>{fmt(selected?.temperature)}</span>
                     <small>°C</small>
                   </div>
-                  <p aria-label={`Humedad: ${selected?.humidity == null ? "sin lectura" : fmt(selected.humidity, 0) + " %"}`}>
+                  <p aria-label={`Humidity: ${selected?.humidity == null ? "no reading" : fmt(selected.humidity, 0) + " %"}`}>
                     <Droplets size={13} />
                     {selected?.humidity == null ? "—" : `${fmt(selected.humidity, 0)} %`}
                   </p>
@@ -234,14 +234,14 @@ function App() {
               >
               <section
                 className="observations"
-                aria-label="Resumen del intervalo"
+                aria-label="Interval summary"
               >
-                {statsError && <p role="status" className="summary-error">Resumen no disponible</p>}
+                {statsError && <p role="status" className="summary-error">Summary unavailable</p>}
                 <div className="metrics">
                   <div className="metric">
                     <span>
                       <Thermometer size={16} />
-                      Mín. — máx.
+                      Min. — max.
                     </span>
                     <strong>
                       {fmt(min)}
@@ -253,13 +253,13 @@ function App() {
                   <div className="metric">
                     <span>
                       <Flame size={16} />
-                      Demanda de la habitación
+                      Room demand
                     </span>
                     <strong>{knownMs ? duration(heatMs) : "—"}</strong>
                     <p>
                       {knownMs
-                        ? `De ${duration(knownMs)} con estado conocido`
-                        : "Sin estado conocido en este tramo"}
+                        ? `Of ${duration(knownMs)} with a known state`
+                        : "No known state in this interval"}
                     </p>
                   </div>
                   <div className="metric">
@@ -269,7 +269,7 @@ function App() {
                       ) : (
                         <ArrowUpRight size={17} />
                       )}
-                      Variación
+                      Change
                     </span>
                     <strong>
                       {observedChange === null
@@ -284,7 +284,7 @@ function App() {
               <div className="support-grid">
                 <section className="activity">
                   <div className="section-title">
-                    <h2>Cambios de objetivo</h2>
+                    <h2>Target changes</h2>
                     <span>{changes.length}</span>
                   </div>
                   {changes.length ? (
@@ -304,7 +304,7 @@ function App() {
                             </time>
                             <strong>
                               {e.target === null
-                                ? "Apagado"
+                                ? "Off"
                                 : fmt(e.target) + " °C"}
                             </strong>
                           </li>
@@ -313,12 +313,12 @@ function App() {
                   ) : (
                     <div className="no-changes">
                       <Clock3 size={20} />
-                      <p>Sin cambios en este intervalo.</p>
+                      <p>No changes in this interval.</p>
                     </div>
                   )}
                   {changes.length > 5 && (
                     <p className="muted">
-                      Se muestran los cinco más recientes.
+                      Showing the five most recent changes.
                     </p>
                   )}
                 </section>

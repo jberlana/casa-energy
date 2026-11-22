@@ -11,11 +11,11 @@ interface State {
 }
 const providers: [Provider, string][] = [['tado', 'Tado'], ['hue', 'Hue'], ['octopus', 'Octopus']];
 const labels: Record<string, string> = {
-  running: 'Actualizando…', updated: 'Actualizado', failed: 'No se pudo actualizar. Puedes reintentarlo.',
-  unavailable: 'Revisa la vinculación del proveedor.', busy: 'Hay otra actualización en curso.',
-  quota: 'Límite de consultas alcanzado. Inténtalo más tarde.', cooldown: 'Espera antes de volver a actualizar.',
-  interrupted: 'La actualización se interrumpió.', pending_review: 'Documentos disponibles · importes pendientes de verificar',
-  partial: 'Documentos descargados · quedan más para la próxima actualización',
+  running: 'Refreshing…', updated: 'Updated', failed: 'Could not refresh. You can try again.',
+  unavailable: 'Check the provider connection.', busy: 'Another refresh is in progress.',
+  quota: 'Request limit reached. Try again later.', cooldown: 'Wait before refreshing again.',
+  interrupted: 'The refresh was interrupted.', pending_review: 'Documents available · amounts awaiting verification',
+  partial: 'Documents downloaded · more remain for the next refresh',
 };
 
 export function RefreshMenu({source}: {source: Source}) {
@@ -64,7 +64,7 @@ export function RefreshMenu({source}: {source: Source}) {
         accept(next);
         setMessage(previous => previous?.transient ? null : previous);
       } catch {
-        if (!controller.signal.aborted) setMessage({text: 'No se pudo comprobar la actualización.', transient: true});
+        if (!controller.signal.aborted) setMessage({text: 'Could not check refresh status.', transient: true});
       }
       if (!controller.signal.aborted) timer = setTimeout(poll, 2000);
     };
@@ -86,12 +86,12 @@ export function RefreshMenu({source}: {source: Source}) {
       if (!active.current) return;
       accept(next);
       if (next.request && !next.request.accepted) {
-        const retry = next.request.retryAt ? ` Disponible a las ${new Date(next.request.retryAt).toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit'})}.` : '';
+        const retry = next.request.retryAt ? ` Available at ${new Date(next.request.retryAt).toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'})}.` : '';
         setMessage({provider, text: (labels[next.request.reason ?? 'failed'] ?? labels.failed) + retry});
       }
       if (!next.running && next.request?.accepted) window.dispatchEvent(new Event(DATA_UPDATED));
     } catch {
-      if (active.current) setMessage({provider, text: 'No se pudo confirmar la solicitud. Comprobando su estado…', transient: true});
+      if (active.current) setMessage({provider, text: 'Could not confirm the request. Checking its status…', transient: true});
     } finally {
       if (active.current) {setPending(null); setAttempt(v => v + 1);}
     }
@@ -106,22 +106,22 @@ export function RefreshMenu({source}: {source: Source}) {
       enabled[index]?.focus();
     }
   }}>
-    <button ref={button} className="refresh-menu-trigger" aria-label="Acciones de datos" aria-expanded={open} aria-haspopup="menu"
+    <button ref={button} className="refresh-menu-trigger" aria-label="Data actions" aria-expanded={open} aria-haspopup="menu"
       onKeyDown={e => {if (!open && ['ArrowDown', 'ArrowUp'].includes(e.key)) {e.preventDefault(); setOpen(true);}}}
       onClick={() => setOpen(v => !v)}><Ellipsis size={22}/>{(pending || state?.running) && <span className="refresh-activity"/>}</button>
-    {open && <div className="refresh-menu-panel" role="menu" aria-label="Actualizar datos" onBlur={e => {
+    {open && <div className="refresh-menu-panel" role="menu" aria-label="Refresh data" onBlur={e => {
       if (e.relatedTarget && !root.current?.contains(e.relatedTarget as Node)) setOpen(false);
     }}>
-      <span className="refresh-menu-title">Actualizar datos</span>
+      <span className="refresh-menu-title">Refresh data</span>
       {providers.map(([provider, label], i) => {
         const status = state?.providers?.[provider]?.state;
         const detail = message?.provider === provider ? message.text : pending === provider ? labels.running : labels[status ?? 'idle'];
         return <button key={provider} role="menuitem" ref={el => {items.current[i] = el;}} disabled={disabled} onClick={() => void refresh(provider)}>
           <RefreshCw size={15} className={status === 'running' || pending === provider ? 'refresh-spinning' : ''}/>
-          <span>Actualizar {label}{source === 'real' && detail && <small aria-live="polite">{detail}</small>}</span>
+          <span>Refresh {label}{source === 'real' && detail && <small aria-live="polite">{detail}</small>}</span>
         </button>;
       })}
-      {source === 'demo' && <p>Selecciona «Mi casa» para actualizar los proveedores.</p>}
+      {source === 'demo' && <p>Select "My home" to refresh providers.</p>}
       {source === 'real' && message && !message.provider && <p role="status">{message.text}</p>}
     </div>}
   </div>;

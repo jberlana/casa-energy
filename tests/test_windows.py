@@ -64,13 +64,13 @@ class DetectionTests(unittest.TestCase):
         state.extend([{'series': 'callForHeat', 'start': BASE + 15 * MINUTE, 'end': BASE + DAY, 'value': 'NONE'},
                       {'series': 'settings', 'start': BASE + 15 * MINUTE, 'end': BASE + DAY, 'value': {'power': 'OFF'}}])
         reasons = detect(states=state)['events'][0]['alternatives']
-        self.assertIn('La demanda acababa de terminar', reasons)
-        self.assertIn('Coincide con un cambio de consigna', reasons)
+        self.assertIn('Heating demand had just ended', reasons)
+        self.assertIn('Coincides with a target change', reasons)
 
     def test_cross_room_cooling_and_outside_context(self):
         result = detect(peers=[samples()], outdoor=[[BASE, 22]])['events'][0]
-        self.assertIn('Otras habitaciones se enfrían al mismo tiempo', result['alternatives'])
-        self.assertIn('Poca diferencia entre temperatura interior y exterior', result['alternatives'])
+        self.assertIn('Other rooms are cooling at the same time', result['alternatives'])
+        self.assertIn('Small difference between indoor and outdoor temperature', result['alternatives'])
         self.assertIsNotNone(result['absoluteHumidityChange'])
 
     def test_null_tado_is_unknown_and_activated_false_is_not_no_detection(self):
@@ -114,7 +114,7 @@ class DetectionTests(unittest.TestCase):
         baseline += [[BASE + 40 * 15 * MINUTE, 20, 50], [BASE + 41 * 15 * MINUTE, 20, 50]]
         result = detect(baseline)['events'][0]
         self.assertGreaterEqual(result['referenceCount'], 30)
-        self.assertIn('Más rápido que el enfriamiento habitual', result['reasons'])
+        self.assertIn('Faster than usual cooling', result['reasons'])
 
 
 class WindowAPITests(unittest.TestCase):

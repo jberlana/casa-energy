@@ -1,5 +1,13 @@
 # Contributing
 
+## Language
+
+Use English for all maintained code, names, comments, docstrings, documentation, examples, error
+messages, CLI output, interface text and accessibility labels. Check new and changed prose during
+review, including tests and generated templates. User-supplied data, product names and required
+provider/protocol literals retain their original values. English presentation does not change the
+installation time zone, units or stored data.
+
 ## Development environment
 
 Use Python 3.11+ and Node.js 22+. Start at the repository root:

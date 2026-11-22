@@ -36,7 +36,7 @@ ROOM_NAMES = {101: "Demo A", 102: "Demo B", 103: "Demo C", 104: "Demo D"}
 HEAT_LEVELS = {"LOW", "MEDIUM", "HIGH", "HEATING"}
 refresh_coordinator = Coordinator()
 window_store = WindowStore(Path(os.environ.get('TADO_WEB_ROOT', Path.home() / 'Library/Application Support/TadoWeb')))
-app = FastAPI(title="Casa · historial local", docs_url=None, redoc_url=None, openapi_url=None)
+app = FastAPI(title="Casa · local history", docs_url=None, redoc_url=None, openapi_url=None)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=[
     "127.0.0.1", "localhost", "testserver",
@@ -74,7 +74,7 @@ def database():
         db.execute("BEGIN")  # Consistent view across samples and intervals during a collector commit.
         yield db
     except sqlite3.Error as exc:
-        raise HTTPException(503, "El histórico no está disponible. Inténtalo de nuevo.") from exc
+        raise HTTPException(503, "History is unavailable. Try again.") from exc
     finally:
         if 'db' in locals():
             db.close()
@@ -82,12 +82,12 @@ def database():
 
 def validate_source(source):
     if source not in ("real", "demo"):
-        raise HTTPException(422, "Origen desconocido")
+        raise HTTPException(422, "Unknown source")
 
 
 def window(start, end):
     if not (0 <= start < end <= 4_102_444_800_000) or end - start > 366 * DAY:
-        raise HTTPException(422, "El intervalo debe estar entre un minuto y 366 días")
+        raise HTTPException(422, "The interval must be between one minute and 366 days")
 
 
 @app.get("/api/health")
@@ -114,14 +114,14 @@ def require_refresh_origin(request):
     if (request.headers.get("x-casa-refresh") != "1" or origin.scheme not in ("http", "https")
             or origin.netloc != request.headers.get("host")
             or request.headers.get("sec-fetch-site", "same-origin") != "same-origin"):
-        raise HTTPException(403, "Origen no permitido")
+        raise HTTPException(403, "Origin not allowed")
 
 
 @app.post('/api/refresh/{provider}')
 def refresh_provider(request: Request, provider: Literal['tado', 'hue', 'octopus'], source: Literal['real', 'demo'] = Query(...)):
     require_refresh_origin(request)
     if source != 'real':
-        raise HTTPException(409, 'Selecciona Mi casa para actualizar los proveedores')
+        raise HTTPException(409, 'Select My home to refresh providers')
     return refresh_coordinator.request_manual(provider)
 
 
@@ -130,13 +130,13 @@ def environment(start: int, end: int, source: str = "real"):
     validate_source(source)
     window(start, end)
     if source == "demo":
-        return {"sensor": "Entrada", "outdoor": [], "weather": [], "days": [],
+        return {"sensor": "Entrance", "outdoor": [], "weather": [], "days": [],
                 "hueStatus": None, "weatherStatus": None, "firstOutdoor": None,
                 "location": "Local", "timezone": "Europe/Madrid"}
     try:
         return read_environment(start, end)
     except sqlite3.Error:
-        raise HTTPException(503, "El contexto exterior no está disponible") from None
+        raise HTTPException(503, "Outdoor context is unavailable") from None
 
 
 @app.get("/api/meta")
@@ -201,7 +201,7 @@ def demo_data(room, start, end):
 def real_data(db, room, start, end):
     record = db.execute("SELECT home_id FROM rooms WHERE room_id=? AND active=1", (room,)).fetchone()
     if not record:
-        raise HTTPException(404, "Habitación desconocida")
+        raise HTTPException(404, "Unknown room")
     home = record[0]
     samples = [[ms(r[0]), r[1], r[2]] for r in db.execute(
         "SELECT timestamp,temperature_c,humidity_pct FROM samples WHERE home_id=? AND room_id=? "
@@ -258,7 +258,7 @@ def get_data(source, room, start, end):
     window(start, end)
     if source == "demo":
         if room not in ROOM_NAMES:
-            raise HTTPException(404, "Habitación desconocida")
+            raise HTTPException(404, "Unknown room")
         return demo_data(room, start, end)
     with database() as db:
         return real_data(db, room, start, end)
@@ -330,7 +330,7 @@ def sessions(room: int, start: int, end: int, source: str = "real"):
     rooms = {}
     if source == "demo":
         if room not in ROOM_NAMES:
-            raise HTTPException(404, "Habitación desconocida")
+            raise HTTPException(404, "Unknown room")
         for rid, name in ROOM_NAMES.items():
             # Only the selected room needs samples. Other rooms need state transitions.
             samples, events = demo_data(rid, a, b)
@@ -339,7 +339,7 @@ def sessions(room: int, start: int, end: int, source: str = "real"):
         with database() as db:
             records = db.execute("SELECT room_id,name FROM rooms WHERE active=1").fetchall()
             if room not in [r[0] for r in records]:
-                raise HTTPException(404, "Habitación desconocida")
+                raise HTTPException(404, "Unknown room")
             for rid, name in records:
                 samples, events = real_data(db, rid, a, b)
                 rooms[rid] = {"name": name, "samples": samples if rid == room else [], "events": events}
@@ -359,7 +359,7 @@ def invoices():
                   "fixed_eur", "variable_eur", "other_eur", "tax_eur", "total_eur")
         rows = [{key: row.get(key) for key in fields} for row in data['invoices']]
     except (OSError, ValueError, KeyError, TypeError):
-        raise HTTPException(503, "Las facturas verificadas no están disponibles") from None
+        raise HTTPException(503, "Verified invoices are unavailable") from None
     return {"invoices": sorted(rows, key=lambda r:r['period_start'], reverse=True),
             "resolution": "billing_period", "completeHistory": False}
 
@@ -391,7 +391,7 @@ def window_events(room: int, start: int, end: int, source: str = 'real'):
         trials = window_store.experiments(room) if source == 'real' else []
         if source == 'demo':
             if room not in ROOM_NAMES:
-                raise HTTPException(404, 'Habitación desconocida')
+                raise HTTPException(404, 'Unknown room')
             samples, events = demo_window_data(room, a, b)
             peers = [demo_window_data(r, a, b)[0] for r in ROOM_NAMES if r != room]
         else:
@@ -423,7 +423,7 @@ def window_events(room: int, start: int, end: int, source: str = 'real'):
                            outdoor=outdoor, labels=labels, confirmed=confirmed)
         return {'source': source, 'room': room, 'start': start, 'end': end, **result}
     except (sqlite3.Error, ValueError, OSError):
-        raise HTTPException(503, 'No se pudo analizar la ventilación') from None
+        raise HTTPException(503, 'Could not analyze ventilation') from None
 
 
 class WindowFeedback(BaseModel):
@@ -442,17 +442,17 @@ def window_feedback(request: Request, body: WindowFeedback):
     if (request.headers.get('x-casa-feedback') != '1' or origin.scheme not in ('http', 'https')
             or origin.netloc != request.headers.get('host')
             or request.headers.get('sec-fetch-site', 'same-origin') != 'same-origin'):
-        raise HTTPException(403, 'Origen no permitido')
+        raise HTTPException(403, 'Origin not allowed')
     if body.end < body.start or body.end - body.start > DAY:
-        raise HTTPException(422, 'Intervalo de evento no válido')
+        raise HTTPException(422, 'Invalid event interval')
     data = window_events(body.room, max(0, body.start - MINUTE), body.end + MINUTE, body.source)
     event = next((e for e in data['events'] if e['id'] == body.eventId), None)
     if event is None:
-        raise HTTPException(409, 'El evento ha cambiado. Actualiza el detalle.')
+        raise HTTPException(409, 'The event has changed. Refresh the details.')
     try:
         window_store.save_label(body.source, body.room, event, body.label)
     except (sqlite3.Error, ValueError, OSError):
-        raise HTTPException(503, 'No se pudo guardar la confirmación') from None
+        raise HTTPException(503, 'Could not save the confirmation') from None
     return {'saved': True}
 
 

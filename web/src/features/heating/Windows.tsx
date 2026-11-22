@@ -16,8 +16,8 @@ interface WindowEvents {
 }
 interface Plot extends Range { left: number; top: number; width: number; height: number }
 const clock = (t: number) => date(t, {hour: '2-digit', minute: '2-digit'});
-const title = (e: WindowEvent) => e.label === 'yes' ? 'Confirmado por ti' : e.label === 'no' ? 'No fue ventilación' :
-  e.origins.includes('tado') ? 'Detectado por Tado' : 'Posible ventilación';
+const title = (e: WindowEvent) => e.label === 'yes' ? 'Confirmed by you' : e.label === 'no' ? 'Not ventilation' :
+  e.origins.includes('tado') ? 'Detected by Tado' : 'Possible ventilation';
 
 export function WindowInsights({source, room, range, plot, updated}: {
   source: Source; room: number; range: Range; plot: Plot; updated: number | null;
@@ -80,33 +80,33 @@ export function WindowInsights({source, room, range, plot, updated}: {
     {plot.width > 0 && groups.map(group => <button
       key={group.events[0].id} className={`window-marker ${group.events.every(e => e.label === 'no') ? 'dismissed' : ''}`}
       style={{left: plot.left + group.x - 22, top: plot.top + plot.height - 60}}
-      title={group.events.length > 1 ? `${group.events.length} posibles ventilaciones` : title(group.events[0])}
-      aria-label={group.events.length > 1 ? `${group.events.length} eventos de ventilación` : `${title(group.events[0])}, ${date(group.events[0].start)}`}
+      title={group.events.length > 1 ? `${group.events.length} possible ventilation events` : title(group.events[0])}
+      aria-label={group.events.length > 1 ? `${group.events.length} ventilation events` : `${title(group.events[0])}, ${date(group.events[0].start)}`}
       onClick={e => { trigger.current = e.currentTarget; setSelection(group.events[0].id); setEditing(false); setSaveError(false); }}>
       <Wind size={17} aria-hidden="true" />{group.events.length > 1 && <small>{group.events.length}</small>}
     </button>)}
-    {failed && <button className="window-retry" aria-label="Reintentar análisis de ventilación" title="No se pudo analizar la ventilación" onClick={() => setReload(v => v + 1)}><Wind size={15}/>?</button>}
-    {selected && <div className="window-detail" ref={panel} tabIndex={-1} role="dialog" aria-modal="false" aria-label="Detalle de ventilación"
+    {failed && <button className="window-retry" aria-label="Retry ventilation analysis" title="Could not analyze ventilation" onClick={() => setReload(v => v + 1)}><Wind size={15}/>?</button>}
+    {selected && <div className="window-detail" ref={panel} tabIndex={-1} role="dialog" aria-modal="false" aria-label="Ventilation details"
       onKeyDown={e => { if (e.key === 'Escape') {e.stopPropagation(); close();} }}>
-      <div className="window-heading"><strong><Wind size={17}/>{title(selected)}</strong><button aria-label="Cerrar detalle de ventilación" onClick={close}><X size={18}/></button></div>
-      <p className="window-time">{date(selected.start, {day:'numeric',month:'short'})} · {selected.confirmedWindow ? `${clock(selected.confirmedWindow[0])} – ${clock(selected.confirmedWindow[1])} · anotado` : selected.onset[0] === selected.onset[1] ? clock(selected.start) : `Entre ${clock(selected.onset[0])} y ${clock(selected.onset[1])}`}</p>
-      {source === 'demo' && <p className="window-note">Ejemplo con datos simulados.</p>}
-      {selected.dropC !== null && <p className="window-drop">−{fmt(selected.dropC, 2)} °C <span>de descenso observado</span></p>}
-      <details><summary>Ver indicios</summary>
+      <div className="window-heading"><strong><Wind size={17}/>{title(selected)}</strong><button aria-label="Close ventilation details" onClick={close}><X size={18}/></button></div>
+      <p className="window-time">{date(selected.start, {day:'numeric',month:'short'})} · {selected.confirmedWindow ? `${clock(selected.confirmedWindow[0])} – ${clock(selected.confirmedWindow[1])} · recorded` : selected.onset[0] === selected.onset[1] ? clock(selected.start) : `Between ${clock(selected.onset[0])} and ${clock(selected.onset[1])}`}</p>
+      {source === 'demo' && <p className="window-note">Example using simulated data.</p>}
+      {selected.dropC !== null && <p className="window-drop">−{fmt(selected.dropC, 2)} °C <span>observed drop</span></p>}
+      <details><summary>View evidence</summary>
         <ul>{selected.reasons.map(reason => <li key={reason}>{reason}</li>)}</ul>
-        {selected.alternatives.length > 0 && <><span>Otras explicaciones</span><ul>{selected.alternatives.map(reason => <li key={reason}>{reason}</li>)}</ul></>}
-        <p className="window-note">{selected.demand === true ? 'Había demanda de calefacción. ' : ''}{selected.origins.includes('guided') ? 'Apertura anotada en una prueba guiada.' : 'El final del enfriamiento no confirma cuándo se cerró la ventana.'}</p>
+        {selected.alternatives.length > 0 && <><span>Other explanations</span><ul>{selected.alternatives.map(reason => <li key={reason}>{reason}</li>)}</ul></>}
+        <p className="window-note">{selected.demand === true ? 'There was heating demand. ' : ''}{selected.origins.includes('guided') ? 'Opening recorded during a guided trial.' : 'The end of cooling does not confirm when the window was closed.'}</p>
       </details>
       {(editing || (current?.askForFeedback && !selected.label)) ? <div className="window-feedback">
-        <span>¿Se abrió una ventana?</span><div role="group" aria-label="Confirmar ventilación">
-          {([['yes', 'Sí'], ['no', 'No'], ['unknown', 'No lo sé']] as const).map(([value, label]) =>
+        <span>Was a window opened?</span><div role="group" aria-label="Confirm ventilation">
+          {([['yes', 'Yes'], ['no', 'No'], ['unknown', 'Unknown']] as const).map(([value, label]) =>
             <button key={value} disabled={saving} aria-pressed={selected.label === value} onClick={() => answer(selected, value)}>{label}</button>)}
-        </div></div> : <button className="text-button" onClick={() => setEditing(true)}>{selected.label ? 'Corregir' : 'Revisar detección'}</button>}
-      {saveError && <p role="alert">No se pudo guardar. Inténtalo de nuevo.</p>}
+        </div></div> : <button className="text-button" onClick={() => setEditing(true)}>{selected.label ? 'Correct' : 'Review detection'}</button>}
+      {saveError && <p role="alert">Could not save. Try again.</p>}
       {visible.length > 1 && <div className="window-navigation">
-        <button disabled={visible.indexOf(selected) === 0} onClick={() => {setSelection(visible[visible.indexOf(selected) - 1].id); setEditing(false);}}>Anterior</button>
+        <button disabled={visible.indexOf(selected) === 0} onClick={() => {setSelection(visible[visible.indexOf(selected) - 1].id); setEditing(false);}}>Previous</button>
         <span>{visible.indexOf(selected) + 1} / {visible.length}</span>
-        <button disabled={visible.indexOf(selected) === visible.length - 1} onClick={() => {setSelection(visible[visible.indexOf(selected) + 1].id); setEditing(false);}}>Siguiente</button>
+        <button disabled={visible.indexOf(selected) === visible.length - 1} onClick={() => {setSelection(visible[visible.indexOf(selected) + 1].id); setEditing(false);}}>Next</button>
       </div>}
     </div>}
   </>;

@@ -102,7 +102,7 @@ def detection(room, samples, intervals, start, end, *, snapshots=(), peers=(), o
             duration = current[0] - first[0]
             first_index = bisect_left(times, first[0])
             onset_end = rows[first_index + 1][0]
-            reasons = [f"Descenso de {drop:.2f} °C en {duration / MINUTE:.0f} min"]
+            reasons = [f"Drop of {drop:.2f} °C in {duration / MINUTE:.0f} min"]
             alternatives = []
             prior_times = reference_times[heating]
             a = bisect_left(prior_times, first[0] - 30 * DAY)
@@ -112,16 +112,16 @@ def detection(room, samples, intervals, start, end, *, snapshots=(), peers=(), o
             if reference_count >= 30:
                 ordered = sorted(reference_values)
                 unusual = drop * MINUTE / duration > max(.005, ordered[int(.95 * (len(ordered) - 1))])
-                (reasons if unusual else alternatives).append('Más rápido que el enfriamiento habitual' if unusual else 'Similar a otros enfriamientos de la habitación')
+                (reasons if unusual else alternatives).append('Faster than usual cooling' if unusual else 'Similar to other cooling periods in this room')
             else:
-                alternatives.append('Referencia de la habitación todavía insuficiente')
+                alternatives.append('Not enough room baseline data yet')
             relevant = [e for e in intervals if first[0] - 20 * MINUTE <= e['start'] <= current[0]]
             if any(e['series'] == 'settings' for e in relevant):
-                alternatives.append('Coincide con un cambio de consigna')
+                alternatives.append('Coincides with a target change')
             if any(e['series'] == 'callForHeat' and e['value'] == 'NONE' and context.at('callForHeat', e['start'] - 1) in HEAT for e in relevant):
-                alternatives.append('La demanda acababa de terminar')
+                alternatives.append('Heating demand had just ended')
             if heating is None:
-                alternatives.append('Estado de demanda desconocido')
+                alternatives.append('Unknown demand state')
             peer_drops = []
             for peer, ts in peer_indexes:
                 x, y = bisect_right(ts, first[0]) - 1, bisect_right(ts, current[0]) - 1
@@ -130,15 +130,15 @@ def detection(room, samples, intervals, start, end, *, snapshots=(), peers=(), o
                     if all(finite(s[1]) for s in part) and all(b[0] - a[0] <= MAX_GAP for a, b in zip(part, part[1:])):
                         peer_drops.append(peer[x][1] - peer[y][1])
             if peer_drops and median(peer_drops) >= drop * .6:
-                alternatives.append('Otras habitaciones se enfrían al mismo tiempo')
+                alternatives.append('Other rooms are cooling at the same time')
             ah_before, ah_after = absolute_humidity(first[1], first[2]), absolute_humidity(current[1], current[2])
             ah_delta = round(ah_after - ah_before, 2) if ah_before is not None and ah_after is not None else None
             if ah_delta is not None and abs(ah_delta) >= .4:
-                reasons.append('Cambio simultáneo de humedad absoluta')
+                reasons.append('Simultaneous change in absolute humidity')
             wi = bisect_right(weather_times, current[0]) - 1
             outside = weather[wi][1] if wi >= 0 and current[0] - weather[wi][0] <= 90 * MINUTE else None
             if outside is not None and outside >= first[1] - 1:
-                alternatives.append('Poca diferencia entre temperatura interior y exterior')
+                alternatives.append('Small difference between indoor and outdoor temperature')
             event = {'id': f'{room}:{first[0]}', 'start': first[0], 'end': current[0],
                      'onset': [first[0], onset_end], 'dropC': round(drop, 2), 'demand': heating,
                      'absoluteHumidityChange': ah_delta, 'outsideC': outside, 'origins': ['thermal'],
@@ -157,7 +157,7 @@ def detection(room, samples, intervals, start, end, *, snapshots=(), peers=(), o
                 last['end'] = current[0]
                 original = rows[bisect_left(times, last['start'])]
                 last['dropC'] = round(original[1] - current[1], 2)
-                last['reasons'][0] = f"Descenso de {last['dropC']:.2f} °C en {(current[0] - last['start']) / MINUTE:.0f} min"
+                last['reasons'][0] = f"Drop of {last['dropC']:.2f} °C in {(current[0] - last['start']) / MINUTE:.0f} min"
             else:
                 candidates.append(event)
             # One bounded cooling episode, not one marker for every rolling window.
@@ -177,14 +177,14 @@ def detection(room, samples, intervals, start, end, *, snapshots=(), peers=(), o
         if match:
             if 'tado' not in match['origins']:
                 match['origins'].append('tado')
-                match['reasons'].append('Tado comunicó una detección durante este tramo')
+                match['reasons'].append('Tado reported a detection during this interval')
             match['tadoShutoff'] = value.get('activated') if isinstance(value.get('activated'), bool) else None
         else:
             candidates.append({'id': f'{room}:tado:{at}', 'start': at, 'end': at,
                                'onset': [at, at], 'dropC': None, 'demand': None, 'outsideC': None,
                                'absoluteHumidityChange': None, 'origins': ['tado'], 'label': None,
-                               'reasons': ['Aviso de Tado observado en este momento'],
-                               'alternatives': ['Inicio y duración de la apertura desconocidos'],
+                               'reasons': ['Tado alert observed at this time'],
+                               'alternatives': ['Unknown opening time and duration'],
                                'tadoShutoff': value.get('activated') if isinstance(value.get('activated'), bool) else None,
                                'referenceCount': 0, 'provisional': True, 'version': VERSION})
 
@@ -230,8 +230,8 @@ def guided_annotations(experiments, samples, intervals=()):
         event = {'id': 'guided:' + trial['id'], 'start': trial['opened'], 'end': trial['closed'],
                  'onset': [trial['opened'], trial['opened']], 'dropC': drop, 'demand': None,
                  'absoluteHumidityChange': None, 'outsideC': None, 'origins': ['guided'],
-                 'reasons': ['Apertura y cierre anotados durante una prueba guiada'],
-                 'alternatives': ['La prueba tuvo otros cambios; no se usa para ajustar el detector'] if trial['confounded'] else [],
+                 'reasons': ['Opening and closing recorded during a guided trial'],
+                 'alternatives': ['The trial had other changes; it is not used to adjust the detector'] if trial['confounded'] else [],
                  'referenceCount': 0, 'provisional': False, 'version': VERSION}
         result.append({'id': event['id'], 'event': event, 'label': 'yes', 'created': trial['opened'], 'experiment': True})
     return result

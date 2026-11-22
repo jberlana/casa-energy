@@ -32,47 +32,7 @@ import { useEnvironment, WeatherRibbon, condition, daylightBands, type Plot } fr
 
 Highcharts.setOptions({
   time: { timezone: "Europe/Madrid" },
-  lang: {
-    months: [
-      "enero",
-      "febrero",
-      "marzo",
-      "abril",
-      "mayo",
-      "junio",
-      "julio",
-      "agosto",
-      "septiembre",
-      "octubre",
-      "noviembre",
-      "diciembre",
-    ],
-    shortMonths: [
-      "ene",
-      "feb",
-      "mar",
-      "abr",
-      "may",
-      "jun",
-      "jul",
-      "ago",
-      "sep",
-      "oct",
-      "nov",
-      "dic",
-    ],
-    weekdays: [
-      "domingo",
-      "lunes",
-      "martes",
-      "miércoles",
-      "jueves",
-      "viernes",
-      "sábado",
-    ],
-    decimalPoint: ",",
-    thousandsSep: ".",
-  },
+  lang: { decimalPoint: ".", thousandsSep: "," },
 });
 interface Props {
   meta: Meta;
@@ -152,13 +112,13 @@ function RangeControl({ range, bounds, onNavigate, onZoom }: {
         close(true);
       }
     }}>
-      <summary ref={trigger} aria-label={`Intervalo visible: ${date(range.min)} a ${date(range.max)} (${duration})`}>
+      <summary ref={trigger} aria-label={`Visible interval: ${date(range.min)} to ${date(range.max)} (${duration})`}>
         <strong>{startDay === endDay ? startDay : `${startDay} – ${endDay}`}</strong>
         {span <= DAY && <span className="range-hours">{date(range.min, clock)} – {date(range.max, clock)}</span>}
         <span className="range-duration">{duration} <ChevronDown size={14} aria-hidden="true" /></span>
       </summary>
       <div className="range-panel">
-        <div className="range-presets" role="group" aria-label="Duración del intervalo">
+        <div className="range-presets" role="group" aria-label="Interval duration">
           {RANGE_PRESETS.map(({ label, duration }) => (
             <button
               key={label}
@@ -168,11 +128,11 @@ function RangeControl({ range, bounds, onNavigate, onZoom }: {
             >{label}</button>
           ))}
         </div>
-        <div className="range-actions" role="group" aria-label="Desplazamiento y zoom">
-          <button aria-label="Intervalo anterior" title="Intervalo anterior" disabled={atStart} onClick={() => apply(() => onNavigate(range.min - span, range.min))}><ChevronLeft size={17} /></button>
-          <button aria-label="Intervalo siguiente" title="Intervalo siguiente" disabled={atEnd} onClick={() => apply(() => onNavigate(range.max, range.max + span))}><ChevronRight size={17} /></button>
-          <button aria-label="Alejar gráfica" title="Alejar gráfica" disabled={atStart && atEnd} onClick={() => apply(() => onZoom(2))}><Minus size={16} /></button>
-          <button aria-label="Acercar gráfica" title="Acercar gráfica" disabled={span <= 15 * 60_000} onClick={() => apply(() => onZoom(0.5))}><Plus size={16} /></button>
+        <div className="range-actions" role="group" aria-label="Pan and zoom">
+          <button aria-label="Previous interval" title="Previous interval" disabled={atStart} onClick={() => apply(() => onNavigate(range.min - span, range.min))}><ChevronLeft size={17} /></button>
+          <button aria-label="Next interval" title="Next interval" disabled={atEnd} onClick={() => apply(() => onNavigate(range.max, range.max + span))}><ChevronRight size={17} /></button>
+          <button aria-label="Zoom out" title="Zoom out" disabled={atStart && atEnd} onClick={() => apply(() => onZoom(2))}><Minus size={16} /></button>
+          <button aria-label="Zoom in" title="Zoom in" disabled={span <= 15 * 60_000} onClick={() => apply(() => onZoom(0.5))}><Plus size={16} /></button>
         </div>
       </div>
     </details>
@@ -378,7 +338,7 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
       },
       accessibility: {
         description:
-          `Historial de temperatura, objetivo y demanda de calor${source === "demo" ? ", con consumo simulado" : ""}. Usa las flechas para desplazarte y más o menos para acercar o alejar.`,
+          `Temperature, target and heating demand history${source === "demo" ? ", with simulated consumption" : ""}. Use arrow keys to pan and plus or minus to zoom.`,
         keyboardNavigation: { enabled: false },
       },
       xAxis: {
@@ -448,7 +408,7 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
             const energy = item?.energyKwh;
             const fraction = daily || !item ? 1 : (t - item.start) / (item.end - item.start);
             const value = energy ? `${fmt(energy.low * fraction)} – ${fmt(energy.high * fraction)} kWh` : "—";
-            return `${date(t)}<br/><b>${value}</b><br/>${daily ? "Consumo simulado · tramo visible del día" : "Consumo simulado · acumulado"}`;
+            return `${date(t)}<br/><b>${value}</b><br/>${daily ? "Simulated consumption · visible part of the day" : "Simulated consumption · cumulative"}`;
           }
           const t = Number(this.x), env = environmentRef.current;
           const weather = env?.weather.find(w => w.timestamp <= t && t - w.timestamp < HOUR);
@@ -457,24 +417,24 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
           const event = loaded.current?.events.find(e => e.series === "settings" && e.start <= t && e.end > t);
           const demand = loaded.current?.events.find(e => e.series === "callForHeat" && e.start <= t && e.end > t);
           const exteriorValue = env?.firstOutdoor && t >= env.firstOutdoor ? exterior?.[1] : null;
-          const label = this.series.options.id === "outdoor" ? "Entrada · exterior" : "Interior";
+          const label = this.series.options.id === "outdoor" ? "Entrance · outdoor" : "Indoor";
           let text = `<span style="color:#b7bfcb">${date(t)}</span><br/><b>${fmt(this.y)} °C</b> · ${label}`;
-          if (this.series.options.id !== "outdoor") text += `<br/>Entrada: ${fmt(exteriorValue)} °C${exteriorValue == null ? "" : ` · ${date(Number(exterior![0]), { hour: "2-digit", minute: "2-digit" })}`}`;
-          text += `<br/>Objetivo: ${event ? (target(event.value) === null ? "Apagado" : fmt(target(event.value)) + " °C") : "—"}`;
-          text += `<br/>Demanda: ${!demand ? "—" : heating(demand.value) ? "Sí" : demand.value === "NONE" ? "No" : "—"}`;
+          if (this.series.options.id !== "outdoor") text += `<br/>Entrance: ${fmt(exteriorValue)} °C${exteriorValue == null ? "" : ` · ${date(Number(exterior![0]), { hour: "2-digit", minute: "2-digit" })}`}`;
+          text += `<br/>Target: ${event ? (target(event.value) === null ? "Off" : fmt(target(event.value)) + " °C") : "—"}`;
+          text += `<br/>Demand: ${!demand ? "—" : heating(demand.value) ? "Yes" : demand.value === "NONE" ? "No" : "—"}`;
           const session = sessionsRef.current?.sessions.find(s=>s.start <= t && s.end >= t);
           if (session) {
-            text += `<br/>Sesión de casa: ${date(session.start,{hour:'2-digit',minute:'2-digit'})} – ${date(session.end,{hour:'2-digit',minute:'2-digit'})}`;
+            text += `<br/>Home session: ${date(session.start,{hour:'2-digit',minute:'2-digit'})} – ${date(session.end,{hour:'2-digit',minute:'2-digit'})}`;
             if (session.energyKwh && session.cost) {
               const fraction = (t-session.start)/session.durationMs;
-              text += `<br/>Consumo simulado: ${fmt(session.energyKwh.low*fraction)} – ${fmt(session.energyKwh.high*fraction)} kWh`;
-              text += `<br/>Coste simulado: ${euros(session.cost.low*fraction)} – ${euros(session.cost.high*fraction)}`;
+              text += `<br/>Simulated consumption: ${fmt(session.energyKwh.low*fraction)} – ${fmt(session.energyKwh.high*fraction)} kWh`;
+              text += `<br/>Simulated cost: ${euros(session.cost.low*fraction)} – ${euros(session.cost.high*fraction)}`;
             }
           }
           if (weather) {
             text += `<br/><span style="color:#b7bfcb">Local · ${date(weather.timestamp, { hour: "2-digit", minute: "2-digit" })}</span><br/>${condition(weather.code, weather.is_day === 1).label} · ${fmt(weather.temperature)} °C`;
-            if (weather.precipitation !== null) text += `<br/>Lluvia: ${fmt(weather.precipitation)} mm · hora anterior`;
-            text += '<br/><span style="color:#b7bfcb">Estimación Open-Meteo</span>';
+            if (weather.precipitation !== null) text += `<br/>Rain: ${fmt(weather.precipitation)} mm · previous hour`;
+            text += '<br/><span style="color:#b7bfcb">Open-Meteo estimate</span>';
           }
           return text;
         },
@@ -493,7 +453,7 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
         {
           id: "temperature",
           type: "line",
-          name: "Temperatura",
+          name: "Temperature",
           color: "#bd4c30",
           lineWidth: 2.7,
           zIndex: 3,
@@ -502,7 +462,7 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
         {
           id: "target",
           type: "line",
-          name: "Objetivo",
+          name: "Target",
           color: "#697486",
           lineWidth: 1.5,
           dashStyle: "Dash",
@@ -514,7 +474,7 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
         {
           id: "heat", visible: false,
           type: "area",
-          name: "Demanda de calor",
+          name: "Heating demand",
           yAxis: 1,
           color: "#e8805e",
           fillOpacity: 0.8,
@@ -540,7 +500,7 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
           id: "known", visible: false,
           type: "line",
           yAxis: 1,
-          name: "Estado conocido",
+          name: "Known state",
           color: "#dce0e5",
           lineWidth: 2,
           enableMouseTracking: false,
@@ -548,16 +508,16 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
           accessibility: { enabled: false },
         },
         {
-          id: "outdoor", type: "spline", name: "Entrada · exterior", color: "#3985a5",
+          id: "outdoor", type: "spline", name: "Entrance · outdoor", color: "#3985a5",
           lineWidth: 2.5, marker: { enabled: false, states: { hover: { enabled: false } } },
           connectNulls: false, data: [], zIndex: 3,
         },
-        { id: "house-known", name: "Estado de demanda conocido", accessibility: { enabled: false }, type: "line", yAxis: 1, color: "#cdd4dc", lineWidth: 2, data: [], enableMouseTracking: false },
-        { id: "house-heat", name: "Demanda conjunta", type: "area", yAxis: 1, color: "#bd4c30", fillOpacity: .62, lineWidth: 0, step: "left", data: [], enableMouseTracking: false },
-        { id: "energy-high", name: "Consumo simulado máximo", type: "line", yAxis: 3, color: ENERGY_COLOR, dashStyle: "ShortDash", lineWidth: 1.6, zIndex: 2, data: [], visible: false },
-        { id: "energy-low", name: "Consumo simulado mínimo", type: "line", yAxis: 3, color: ENERGY_COLOR, lineWidth: 1.6, zIndex: 2, data: [], visible: false },
-        { id: "energy-day-high", name: "Consumo diario simulado máximo", type: "column", yAxis: 3, color: "#306f752d", grouping: false, pointRange: 0, pointPadding: 0, groupPadding: 0, borderWidth: 0, data: [], visible: false },
-        { id: "energy-day-low", name: "Consumo diario simulado mínimo", type: "column", yAxis: 3, color: "#306f755c", grouping: false, pointRange: 0, pointPadding: 0, groupPadding: 0, borderWidth: 0, data: [], visible: false },
+        { id: "house-known", name: "Known demand state", accessibility: { enabled: false }, type: "line", yAxis: 1, color: "#cdd4dc", lineWidth: 2, data: [], enableMouseTracking: false },
+        { id: "house-heat", name: "Combined demand", type: "area", yAxis: 1, color: "#bd4c30", fillOpacity: .62, lineWidth: 0, step: "left", data: [], enableMouseTracking: false },
+        { id: "energy-high", name: "Maximum simulated consumption", type: "line", yAxis: 3, color: ENERGY_COLOR, dashStyle: "ShortDash", lineWidth: 1.6, zIndex: 2, data: [], visible: false },
+        { id: "energy-low", name: "Minimum simulated consumption", type: "line", yAxis: 3, color: ENERGY_COLOR, lineWidth: 1.6, zIndex: 2, data: [], visible: false },
+        { id: "energy-day-high", name: "Maximum simulated daily consumption", type: "column", yAxis: 3, color: "#306f752d", grouping: false, pointRange: 0, pointPadding: 0, groupPadding: 0, borderWidth: 0, data: [], visible: false },
+        { id: "energy-day-low", name: "Minimum simulated daily consumption", type: "column", yAxis: 3, color: "#306f755c", grouping: false, pointRange: 0, pointPadding: 0, groupPadding: 0, borderWidth: 0, data: [], visible: false },
       ],
     });
     chartRef.current = chart;
@@ -698,20 +658,20 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
   };
   const lastOutdoor = environment?.outdoor.filter(s => s[0] >= range.min && s[0] <= range.max).at(-1);
   return (
-    <section className="timeline" aria-label="Histórico interactivo">
+    <section className="timeline" aria-label="Interactive history">
       <RangeControl range={range} bounds={bounds()} onNavigate={navigate} onZoom={zoom} />
       {source === "real" && <div className="environment-status" aria-live="polite">
-        {environmentFailed ? "No se pudo actualizar el contexto exterior" :
-          environment?.hueStatus && (!environment.hueStatus.ok || Date.now() - (environment.hueStatus.updated ?? 0) > 15 * 60_000) ? "Entrada sin conexión reciente" :
-          environment && (!environment.firstOutdoor ? "Esperando la primera lectura de Entrada" :
-          range.max < environment.firstOutdoor ? `Entrada: histórico desde ${date(environment.firstOutdoor)}` : null)}
-        {environment?.weatherStatus && !environment.weatherStatus.ok && <span>Tiempo sin actualizar</span>}
+        {environmentFailed ? "Could not refresh outdoor context" :
+          environment?.hueStatus && (!environment.hueStatus.ok || Date.now() - (environment.hueStatus.updated ?? 0) > 15 * 60_000) ? "No recent entrance sensor connection" :
+          environment && (!environment.firstOutdoor ? "Waiting for the first entrance reading" :
+          range.max < environment.firstOutdoor ? `Entrance: history since ${date(environment.firstOutdoor)}` : null)}
+        {environment?.weatherStatus && !environment.weatherStatus.ok && <span>Weather not refreshed</span>}
       </div>}
       <div
         className="plot-shell"
         tabIndex={0}
         role="region"
-        aria-label="Gráfica. Flechas: desplazar. Más y menos: zoom."
+        aria-label="Chart. Arrow keys: pan. Plus and minus: zoom."
         onKeyDown={(e) => {
           if (e.target !== e.currentTarget) return;
           if (["ArrowLeft", "ArrowRight", "+", "-", "="].includes(e.key))
@@ -727,14 +687,14 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
       >
         <div ref={host} className="chart" />
         <WindowInsights key={`${source}:${room}`} source={source} room={room} range={range} plot={plot} updated={meta.updated} />
-        {source === "demo" && <span className="landscape-demo">Datos simulados</span>}
+        {source === "demo" && <span className="landscape-demo">Simulated data</span>}
         <WeatherRibbon data={environment} plot={plot} />
         {plot.width > 0 && daylightBands(environment, {min: plot.min, max: plot.max}).map(({from, to, daylight}) => {
           const span = plot.max - plot.min;
           const width = (to - from) / span * plot.width;
           if (width < 30) return null;
           const Icon = daylight ? Sun : Moon;
-          const label = daylight ? "Día" : "Noche";
+          const label = daylight ? "Day" : "Night";
           return <span
             key={from}
             className={`light-marker ${daylight ? "day" : "night"}`}
@@ -746,16 +706,16 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
         })}
         {empty && (
           <div className="empty-plot">
-            No hay lecturas en este intervalo
-            <span>Desliza hacia el historial disponible.</span>
+            No readings in this interval
+            <span>Pan to the available history.</span>
           </div>
         )}
         {status === "error" && (
           <div className="chart-error" role="alert">
-            No se pudo cargar este tramo.
+            Could not load this interval.
             <button onClick={() => loadRef.current(range, true)}>
               <RotateCw size={14} />
-              Reintentar
+              Retry
             </button>
           </div>
         )}
@@ -763,22 +723,22 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
       <div className="legend">
         <span>
           <i className="line actual" />
-          Interior
+          Indoor
         </span>
         <span>
           <i className="line target" />
-          Objetivo
+          Target
         </span>
         <span>
           <i className="heat" />
-          Demanda de casa
+          Home demand
         </span>
-        {source === "demo" && <span><i className="line" style={{ background: ENERGY_COLOR }} />Consumo simulado</span>}
-        {source === "real" && <button className={"outdoor-toggle " + (showOutdoor ? "active" : "")} aria-pressed={showOutdoor} onClick={() => setShowOutdoor(v => !v)} title="Mostrar temperatura medida en Entrada">
-          <i className="line exterior" />Exterior{lastOutdoor && <strong>{fmt(lastOutdoor[1])}°</strong>}
+        {source === "demo" && <span><i className="line" style={{ background: ENERGY_COLOR }} />Simulated consumption</span>}
+        {source === "real" && <button className={"outdoor-toggle " + (showOutdoor ? "active" : "")} aria-pressed={showOutdoor} onClick={() => setShowOutdoor(v => !v)} title="Show measured entrance temperature">
+          <i className="line exterior" />Outdoor{lastOutdoor && <strong>{fmt(lastOutdoor[1])}°</strong>}
         </button>}
       </div>
-      <span className="sr-only" role="status">{status === "loading" ? "Cargando tramo…" : ""}</span>
+      <span className="sr-only" role="status">{status === "loading" ? "Loading interval…" : ""}</span>
       {children}
       <SessionDetail
         data={sessions.data}

@@ -1,65 +1,68 @@
 # Casa Energy
 
-Prototipo local para explorar el historial de calefacción: temperatura, objetivo, demanda conjunta,
-contexto exterior y facturas de gas. React, TypeScript y Highcharts Stock sobre una API FastAPI y SQLite.
+A local prototype for exploring heating history: temperature, targets, combined demand,
+outdoor conditions and gas invoices. React, TypeScript and Highcharts Stock over a FastAPI and SQLite backend.
 
-**Este repositorio contiene código y pruebas sintéticas. No incluye lecturas reales, facturas,
-credenciales, identificadores de instalaciones ni direcciones privadas. La interfaz arranca en demo.**
+**This repository contains code and synthetic tests. It does not include real readings, invoices,
+credentials, installation identifiers or private addresses. The interface starts in demo mode.**
 
-## Qué permite
+## Features
 
-- Línea temporal continua con desplazamiento, pinch para zoom y consulta de lecturas.
-- Sesiones calculadas como unión de demanda de habitaciones, sin duplicar solapamientos.
-- Contexto meteorológico opcional mediante Open-Meteo y sensor local Hue.
-- Facturas verificadas importadas localmente, con desglose entre consumo y cargos fijos.
-- Actualización silenciosa de datos desfasados mientras la web está visible, con límites y bloqueo compartido.
-- Menú para actualizar Tado, Hue y documentos de Octopus bajo demanda, con estado y límites compartidos.
-- Acceso privado opcional por Tailscale; el servidor escucha en loopback.
-- Posibles ventilaciones en la gráfica, con confirmaciones discretas y [calibración guiada](docs/ventilation.md).
+- A continuous timeline with panning, pinch to zoom and reading inspection.
+- Sessions calculated from the union of room demand, without double-counting overlaps.
+- Optional weather context from Open-Meteo and a local Hue sensor.
+- Locally imported verified invoices, separating consumption from fixed charges.
+- Silent refresh of stale data while the web interface is visible, with shared limits and locking.
+- A menu to refresh Tado, Hue and Octopus documents on demand, with shared status and limits.
+- Optional private access through Tailscale; the server listens on loopback.
+- Possible ventilation events on the chart, with discreet feedback and [guided calibration](docs/ventilation.md).
 
-Demanda no confirma llama ni mide consumo de gas. Los costes de la demo son ejemplos hipotéticos;
-no son estimaciones calibradas para una vivienda. Los huecos y periodos incompletos se conservan.
+Demand does not confirm burner operation or measure gas consumption. Demo costs are hypothetical examples,
+not estimates calibrated for a home. Gaps and incomplete periods are preserved.
 
-## Inicio rápido
+## Quick start
 
-Python 3.11+ y Node.js 22+. Desde la raíz:
+Python 3.11+ and Node.js 22+. From the repository root:
 
 ```sh
 make setup
 make demo
 ```
 
-Abrir `http://127.0.0.1:8765`. La demo no necesita cuentas y utiliza `.local/` para su estado.
-Si el puerto está ocupado, usar `TADO_WEB_PORT=8767 make demo`. El endpoint de salud del histórico
-real requiere una base configurada; la demo funciona sin ella.
+Open `http://127.0.0.1:8765`. The demo needs no accounts and uses `.local/` for its state.
+If the port is busy, use `TADO_WEB_PORT=8767 make demo`. The real-history health endpoint requires
+a configured database; the demo works without one.
 
-## Organización
+## Organization
 
-| Directorio | Responsabilidad |
+| Directory | Responsibility |
 |---|---|
-| [backend/](backend/README.md) | Recolectores, API local y cálculos |
-| [web/](web/README.md) | Interfaz organizada por funcionalidades |
-| [scripts/](scripts/README.md) | Publicación e instalación en macOS |
-| [tests/](tests/README.md) | Pruebas con datos sintéticos |
-| [examples/](examples/README.md) | Configuración vacía de ejemplo |
-| [docs/](docs/README.md) | Arquitectura, operación y privacidad |
+| [backend/](backend/README.md) | Collectors, local API and calculations |
+| [web/](web/README.md) | Interface organized by feature |
+| [scripts/](scripts/README.md) | Publication and macOS installation |
+| [tests/](tests/README.md) | Tests using synthetic data |
+| [examples/](examples/README.md) | Empty configuration examples |
+| [docs/](docs/README.md) | Architecture, operation and privacy |
 
-## Continuar el desarrollo
+## Development
 
-Leer [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md) y la
-[arquitectura](docs/architecture.md). `make check` ejecuta pruebas y build; después de revisar y
-preparar los archivos en Git, `make check-publication` comprueba el contenido del índice frente a
-`PUBLIC_FILES.txt`. Solo se publican archivos revisados explícitamente.
+Read [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md) and the
+[architecture](docs/architecture.md). `make check` runs tests and the build; after reviewing and
+staging files in Git, `make check-publication` checks the index against
+`PUBLIC_FILES.txt`. Only explicitly reviewed files are published.
 
-La configuración de proveedores y los límites operativos están en [setup](docs/setup.md).
-Los datos de una instalación nunca se trasladan al repositorio. Los cambios de código no actualizan
-por sí solos los servicios ya instalados.
+Provider configuration and operating limits are documented in [setup](docs/setup.md).
+Installation data must never be copied into the repository. Code changes do not automatically
+update services that are already installed.
 
-## Dependencias y alcance
+All maintained code, comments, documentation, examples and application text must be in English.
+Provider contracts and user-supplied data retain their original values.
 
-Highcharts conserva sus créditos y tiene sus propios términos de licencia. Consultar la
-[licencia de Highcharts](https://www.highcharts.com/license) antes de distribuir o explotar este
-prototipo. Publicar este código no concede una licencia para sus dependencias comerciales.
+## Dependencies and scope
 
-No se incluye una licencia de software para este proyecto por ahora. Las API de los proveedores
-pueden cambiar; no se garantiza compatibilidad ni disponibilidad futura.
+Highcharts retains its credits and has its own license terms. Check the
+[Highcharts license](https://www.highcharts.com/license) before distributing or commercially using
+this prototype. Publishing this code does not grant a license to its commercial dependencies.
+
+The project does not currently include a software license. Provider APIs may change;
+future compatibility or availability is not guaranteed.

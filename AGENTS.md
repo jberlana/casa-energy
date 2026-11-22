@@ -6,6 +6,14 @@ Read `README.md`, `CONTRIBUTING.md`, and the README in the directory being chang
 Use `docs/architecture.md` for data ownership and dependency boundaries. The public repository
 is the development source; private installations and their data are separate runtime environments.
 
+## Language
+
+All maintained source code, identifiers, comments, docstrings, documentation, READMEs, examples,
+CLI output, API messages, interface text, accessibility labels and commit/PR text must be in English.
+Review new and changed text for this requirement before delivery. Keep user-supplied data, proper
+product names, provider-defined fields and required protocol literals unchanged. Preserve the
+installation time zone and units; language changes must not rewrite stored household data.
+
 ## Scope and privacy
 
 - Work directly on `main` by default. Create a branch or pull request only when the user requests it.

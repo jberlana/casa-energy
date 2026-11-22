@@ -38,7 +38,7 @@ export const HOUR = 3_600_000,
 export const fmt = (n: number | null | undefined, digits = 1) =>
   n == null
     ? "—"
-    : n.toLocaleString("es-ES", {
+    : n.toLocaleString("en-GB", {
         minimumFractionDigits: digits,
         maximumFractionDigits: digits,
       });
@@ -51,7 +51,7 @@ export const date = (
     minute: "2-digit",
   },
 ) =>
-  new Intl.DateTimeFormat("es-ES", {
+  new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/Madrid",
     ...options,
   }).format(t);
@@ -69,6 +69,6 @@ export async function get<T>(url: string, signal?: AbortSignal): Promise<T> {
     ]),
   });
   if (!r.ok)
-    throw new Error("No se pudo leer el histórico. Vuelve a intentarlo.");
+    throw new Error("Could not read the history. Try again.");
   return r.json();
 }

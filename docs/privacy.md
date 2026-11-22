@@ -1,26 +1,26 @@
-# Datos y publicación
+# Data and publication
 
-El historial doméstico permanece en cada instalación. Este repositorio publica únicamente código,
-configuración vacía y pruebas sintéticas. No hay archivos de ejemplo obtenidos de cuentas reales.
+Household history stays in each installation. This repository publishes only code,
+empty configuration and synthetic tests. No example files come from real accounts.
 
-No añadir bases SQLite, exportaciones, informes, facturas, PDF, capturas de pantalla, trazas,
-registros, sesiones, contraseñas, certificados privados, identificadores de dispositivos, dominios
-privados de acceso remoto, coordenadas de la vivienda ni documentos sobre su funcionamiento real.
-Las rutas de ejecución y los archivos de autorización se resuelven localmente y no se versionan.
+Do not add SQLite databases, exports, reports, invoices, PDFs, screenshots, traces,
+logs, sessions, passwords, private certificates, device identifiers, private remote-access
+domains, home coordinates or documents describing a real installation.
+Runtime paths and authorization files are resolved locally and are not versioned.
 
-La demo utiliza habitaciones `Demo A` a `Demo D`, con identificadores 101–104 independientes de una
-instalación. Sus lecturas se calculan a partir de fórmulas; no se extraen de bases privadas.
+The demo uses rooms `Demo A` through `Demo D`, with IDs 101–104 independent of any
+installation. Readings are calculated from formulas, not extracted from private databases.
 
-`PUBLIC_FILES.txt` es una lista explícita de archivos revisados. El control de publicación rechaza
-archivos versionados fuera de esa lista y patrones comunes de credenciales o ubicaciones privadas.
-No reemplaza una revisión humana: una lectura real o un identificador de formato desconocido puede
-parecer un dato ordinario. No copiar automáticamente archivos de una instalación al repositorio.
+`PUBLIC_FILES.txt` is an explicit list of reviewed files. The publication check rejects
+tracked files outside that list and common patterns for credentials or private locations.
+It does not replace human review: a real reading or an identifier in an unfamiliar format can
+look like ordinary data. Never automatically copy installation files into the repository.
 
-El control también revisa autores, committers y mensajes del historial de la rama, además de la
-identidad del siguiente commit. Usar un alias y el correo `noreply` de GitHub, y activar la privacidad
-del correo para operaciones realizadas desde GitHub. CI añade un escaneo de secretos del historial
-de ramas. Un resultado correcto no demuestra la retirada de objetos archivados en PR o cachés.
+The check also reviews authors, committers and messages in branch history, along with the
+identity of the next commit. Use an alias and a GitHub `noreply` address, and enable email
+privacy for operations performed through GitHub. CI adds a secret scan of branch history.
+A passing result does not prove that archived PR objects or cached views have been removed.
 
-Para cambios posteriores, revisar `git diff --cached`, ejecutar las pruebas y el control de publicación.
-La primera versión se preparó en una carpeta separada, sin importar el historial Git ni los archivos
-de ejecución de la instalación privada.
+For later changes, review `git diff --cached`, run tests and the publication check.
+The initial version was prepared in a separate directory, without importing the private
+installation's Git history or runtime files.

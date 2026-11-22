@@ -79,16 +79,16 @@ export function useEnvironment(source: Source, range: Range) {
 }
 
 export function condition(code: number | null, day: boolean) {
-  if (code === null) return { Icon: CircleHelp, label: "Sin dato", tone: "cloud" };
-  if (code === 0) return { Icon: day ? Sun : Moon, label: "Despejado", tone: day ? "sun" : "moon" };
-  if (code <= 2) return { Icon: day ? CloudSun : CloudMoon, label: "Parcialmente nublado", tone: day ? "sun" : "moon" };
-  if (code === 3) return { Icon: Cloud, label: "Nublado", tone: "cloud" };
-  if (code === 45 || code === 48) return { Icon: CloudFog, label: "Niebla", tone: "cloud" };
-  if (code >= 95) return { Icon: CloudLightning, label: "Tormenta", tone: "rain" };
-  if ([71, 73, 75, 77, 85, 86].includes(code)) return { Icon: CloudSnow, label: "Nieve", tone: "rain" };
-  if ([51, 53, 55, 56, 57].includes(code)) return { Icon: CloudDrizzle, label: "Llovizna", tone: "rain" };
-  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return { Icon: CloudRain, label: "Lluvia", tone: "rain" };
-  return { Icon: CircleHelp, label: "Sin clasificar", tone: "cloud" };
+  if (code === null) return { Icon: CircleHelp, label: "No data", tone: "cloud" };
+  if (code === 0) return { Icon: day ? Sun : Moon, label: "Clear", tone: day ? "sun" : "moon" };
+  if (code <= 2) return { Icon: day ? CloudSun : CloudMoon, label: "Partly cloudy", tone: day ? "sun" : "moon" };
+  if (code === 3) return { Icon: Cloud, label: "Cloudy", tone: "cloud" };
+  if (code === 45 || code === 48) return { Icon: CloudFog, label: "Fog", tone: "cloud" };
+  if (code >= 95) return { Icon: CloudLightning, label: "Thunderstorm", tone: "rain" };
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return { Icon: CloudSnow, label: "Snow", tone: "rain" };
+  if ([51, 53, 55, 56, 57].includes(code)) return { Icon: CloudDrizzle, label: "Drizzle", tone: "rain" };
+  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return { Icon: CloudRain, label: "Rain", tone: "rain" };
+  return { Icon: CircleHelp, label: "Unclassified", tone: "cloud" };
 }
 
 export interface Plot { left: number; top: number; width: number; min: number; max: number }
@@ -118,7 +118,7 @@ export function WeatherRibbon({ data, plot }: { data: Environment | null; plot: 
     const code = codes.length ? Math.max(...codes) : null;
     const complete = hours.length === (d.end - d.start) / HOUR;
     const rain = hours.every(w => w.precipitation !== null) ? hours.reduce((sum, w) => sum + w.precipitation!, 0) : null;
-    descriptions.set(timestamp, `${date(timestamp, { day: "numeric", month: "long" })} · ${condition(code, true).label}${temperatures.length ? ` · ${fmt(Math.min(...temperatures))}–${fmt(Math.max(...temperatures))} °C` : ""}${rain !== null ? ` · ${fmt(rain)} mm` : ""} · ${complete ? "Resumen del día" : "Día parcial"} · estimación Open-Meteo`);
+    descriptions.set(timestamp, `${date(timestamp, { day: "numeric", month: "long" })} · ${condition(code, true).label}${temperatures.length ? ` · ${fmt(Math.min(...temperatures))}–${fmt(Math.max(...temperatures))} °C` : ""}${rain !== null ? ` · ${fmt(rain)} mm` : ""} · ${complete ? "Daily summary" : "Partial day"} · Open-Meteo estimate`);
     return [{ ...hours[0], timestamp, code, is_day: 1 }];
   }) : visible;
   // Keep icons anchored to actual weather timestamps; never stretch estimates into missing hours.
@@ -131,12 +131,12 @@ export function WeatherRibbon({ data, plot }: { data: Environment | null; plot: 
   }
   const active = items.find(w => w.timestamp === selected);
   const activeX = active ? (active.timestamp - plot.min) / span * plot.width : 0;
-  return <div className="weather-ribbon" aria-label="Tiempo en Local por hora" style={{ left: plot.left, width: plot.width, top: 2 }}>
+  return <div className="weather-ribbon" aria-label="Hourly local weather" style={{ left: plot.left, width: plot.width, top: 2 }}>
     <div className="weather-icons">
     {items.map(w => {
       const { Icon, label, tone } = condition(w.code, w.is_day === 1);
       const x = (w.timestamp - plot.min) / span * plot.width;
-      const description = descriptions.get(w.timestamp) ?? `${date(w.timestamp)} · ${label} · Local ${fmt(w.temperature)} °C${w.precipitation === null ? "" : ` · ${fmt(w.precipitation)} mm en la hora anterior`} · estimación Open-Meteo`;
+      const description = descriptions.get(w.timestamp) ?? `${date(w.timestamp)} · ${label} · Local ${fmt(w.temperature)} °C${w.precipitation === null ? "" : ` · ${fmt(w.precipitation)} mm in the previous hour`} · Open-Meteo estimate`;
       return <button key={w.timestamp} className={`weather-mark ${tone}`} style={{ left: x }} aria-label={description} aria-expanded={selected === w.timestamp} aria-controls={selected === w.timestamp ? 'weather-detail' : undefined} onClick={() => setSelected(selected === w.timestamp ? null : w.timestamp)}>
         <Icon size={20} strokeWidth={1.6} />
         {span > 3 * DAY && <small>{date(w.timestamp, { day: "numeric", month: "short" })}</small>}
@@ -144,12 +144,12 @@ export function WeatherRibbon({ data, plot }: { data: Environment | null; plot: 
     })}
     </div>
     {active && <div id="weather-detail" className="weather-detail" role="status" style={{ left: Math.min(Math.max(0, activeX - 110), Math.max(0, plot.width - 220)) }}>
-      <button className="weather-close" aria-label="Cerrar detalle del tiempo" onClick={() => setSelected(null)}><X size={15}/></button>
+      <button className="weather-close" aria-label="Close weather details" onClick={() => setSelected(null)}><X size={15}/></button>
       <small>{date(active.timestamp)}</small>
       <strong>{condition(active.code, active.is_day === 1).label}</strong>
       {daily ? <p>{descriptions.get(active.timestamp)}</p> : <>
-        <div className="weather-values"><b>{fmt(active.temperature)} °C</b><span>{fmt(active.precipitation)} mm<small>hora anterior</small></span></div>
-        <small>Local · estimación Open-Meteo</small>
+        <div className="weather-values"><b>{fmt(active.temperature)} °C</b><span>{fmt(active.precipitation)} mm<small>previous hour</small></span></div>
+        <small>Local · Open-Meteo estimate</small>
       </>}
     </div>}
   </div>;

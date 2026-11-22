@@ -61,7 +61,7 @@ def read_json(url, *, context=None, headers=None):
     with urllib.request.urlopen(req, context=context, timeout=15) as response:
         raw = response.read(4 * 1024 * 1024 + 1)
     if len(raw) > 4 * 1024 * 1024:
-        raise ValueError("Respuesta demasiado grande")
+        raise ValueError("Response too large")
     return json.loads(raw)
 
 
@@ -74,7 +74,7 @@ def hue(cfg, kind, rid):
         data = read_json(f"https://{ip}/clip/v2/resource/{kind}/{rid}", context=ctx,
                          headers={"hue-application-key": cfg["username"]})
         if data.get("errors") or len(data.get("data", [])) != 1:
-            raise ValueError("Recurso Hue no disponible")
+            raise ValueError("Hue resource unavailable")
         return data["data"][0]
     try:
         return fetch(cfg["ip"])
@@ -88,7 +88,7 @@ def hue(cfg, kind, rid):
             output = exc.stdout or b""
         addresses = re.findall(rb"\b(?:\d{1,3}\.){3}\d{1,3}\b", output)
         if not addresses:
-            raise ValueError("Puente Hue no disponible") from None
+            raise ValueError("Hue bridge unavailable") from None
         return fetch(addresses[-1].decode())
 
 
@@ -101,7 +101,7 @@ def store_outdoor(db, resource, connected, now):
     reported = int(datetime.fromisoformat(changed.replace("Z", "+00:00")).timestamp() * 1000) if changed else None
     # timestamp is when we observed this valid state, not the sensor's last change time.
     db.execute("INSERT OR REPLACE INTO outdoor VALUES (?,?,?,?,?)",
-               (now, value if valid else None, reported, "Entrada", int(valid)))
+               (now, value if valid else None, reported, "Entrance", int(valid)))
     set_state(db, "hue", {"updated": now, "ok": valid})
 
 
@@ -118,7 +118,7 @@ def store_weather(db, data, origin, now):
     # Validate before a transaction so malformed replies cannot partially replace the cache.
     fields = ["temperature_2m", "precipitation", "weather_code", "cloud_cover", "is_day"]
     if any(len(hourly[k]) != len(hourly["time"]) for k in fields):
-        raise ValueError("Respuesta meteorológica incompleta")
+        raise ValueError("Incomplete weather response")
     rows = []
     for i, stamp in enumerate(hourly["time"]):
         stamp *= 1000
@@ -137,7 +137,7 @@ def store_weather(db, data, origin, now):
         solar.append((day.isoformat(), int(start.timestamp()*1000), int(end.timestamp()*1000),
                       int(sunrise*1000) if sunrise else None, int(sunset*1000) if sunset else None))
     if not rows:
-        raise ValueError("Sin datos meteorológicos para este intervalo")
+        raise ValueError("No weather data for this interval")
     with db:
         db.executemany("""INSERT INTO weather VALUES (?,?,?,?,?,?,?,?)
             ON CONFLICT(timestamp) DO UPDATE SET
@@ -189,7 +189,7 @@ def collect_weather(db, now):
 def read_environment(start, end, root=ROOT, now=None):
     now = int(time.time()*1000) if now is None else now
     end = min(end, now)
-    result = {"sensor": "Entrada", "outdoor": [], "weather": [], "days": [],
+    result = {"sensor": "Entrance", "outdoor": [], "weather": [], "days": [],
               "hueStatus": None, "weatherStatus": None, "firstOutdoor": None,
               "location": "Local", "timezone": "Europe/Madrid"}
     if not (root / "environment.sqlite3").exists():
@@ -243,7 +243,7 @@ def main():
         except BlockingIOError:
             return
         if shutil.disk_usage(ROOT).free < 1024**3:
-            raise RuntimeError("Menos de 1 GiB disponible")
+            raise RuntimeError("Less than 1 GiB available")
         now = int(time.time()*1000)
         db = connect()
         try:
@@ -257,13 +257,13 @@ def main():
                         set_state(db, name, {**old, "ok": False, "failedAt": now, "error": type(exc).__name__,
                                              "reason": str(getattr(exc, "reason", ""))[:160]})
                         if name == "hue":
-                            db.execute("INSERT OR REPLACE INTO outdoor VALUES (?,?,?,?,?)", (now, None, None, "Entrada", 0))
+                            db.execute("INSERT OR REPLACE INTO outdoor VALUES (?,?,?,?,?)", (now, None, None, "Entrance", 0))
             if now - state(db, "backup_at", 0) >= DAY:
                 temp = ROOT / "backup.tmp.sqlite3"
                 with closing(sqlite3.connect(temp)) as backup:
                     db.backup(backup)
                     if backup.execute("PRAGMA quick_check").fetchone()[0] != "ok":
-                        raise RuntimeError("Respaldo no válido")
+                        raise RuntimeError("Invalid backup")
                 temp.replace(ROOT / "backup.sqlite3")
                 with db:
                     set_state(db, "backup_at", now)

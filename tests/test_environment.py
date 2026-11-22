@@ -59,7 +59,7 @@ class EnvironmentTests(unittest.TestCase):
     def test_downsample_keeps_extrema_and_disconnects_acquisition_gaps(self):
         with self.db:
             for i, temp in [(0, 10), (1, -2), (2, 40), (3, 11), (60, 12)]:
-                self.db.execute("INSERT INTO outdoor VALUES (?,?,?,?,1)", (self.base+i*60_000, temp, self.base, "Entrada"))
+                self.db.execute("INSERT INTO outdoor VALUES (?,?,?,?,1)", (self.base+i*60_000, temp, self.base, "Entrance"))
         result = env.read_environment(self.base, self.base+30*env.DAY, self.root, self.base+30*env.DAY)
         values = [s[1] for s in result["outdoor"] if s[1] is not None]
         self.assertEqual(min(values), -2)

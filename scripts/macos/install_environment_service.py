@@ -13,7 +13,7 @@ from backend.environment_history import ROOT, AUTH
 def main():
     os.umask(0o077)
     if not AUTH.exists():
-        raise SystemExit("Vincula el puente Hue antes de instalar el recolector")
+        raise SystemExit("Pair the Hue bridge before installing the collector")
     ROOT.mkdir(parents=True, exist_ok=True, mode=0o700)
     label = "local.tado-history.environment"
     domain = f"gui/{os.getuid()}"
@@ -23,7 +23,7 @@ def main():
             break
         time.sleep(.2)
     else:
-        raise SystemExit("El recolector anterior todavía está deteniéndose")
+        raise SystemExit("The previous collector is still stopping")
     script = ROOT / "environment_history.py"
     shutil.copy2(Path(__file__).resolve().parents[2] / "backend/environment_history.py", script)
     path = Path.home() / "Library/LaunchAgents" / (label + ".plist")
@@ -39,7 +39,7 @@ def main():
     subprocess.run(["plutil", "-lint", str(path)], check=True)
     subprocess.run(["launchctl", "enable", domain + "/" + label], check=True)
     subprocess.run(["launchctl", "bootstrap", domain, str(path)], check=True)
-    print("Instalado: Entrada cada 5 minutos; Open-Meteo cada 3 horas mientras el Mac está despierto")
+    print("Installed: entrance sensor every 5 minutes; Open-Meteo every 3 hours while the Mac is awake")
 
 
 if __name__ == "__main__":
