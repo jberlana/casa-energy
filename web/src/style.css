@@ -44,6 +44,21 @@ summary::-webkit-details-marker { display: none; }
 .source-switch select { appearance: none; padding: 8px 20px 8px 0; border: 0; background: transparent; cursor: pointer; max-width: 170px; }
 .source-switch > svg:last-child { pointer-events: none; position: absolute; right: 8px; }
 .source-switch.demo { color: var(--accent); background: var(--tint); }
+.header-right { display: flex; align-items: center; gap: 6px; }
+.refresh-menu { position: relative; }
+.refresh-menu-trigger { position: relative; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 8px; }
+.refresh-menu-trigger:hover, .refresh-menu-trigger[aria-expanded=true] { background: var(--wash); }
+.refresh-activity { position: absolute; top: 9px; right: 8px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+.refresh-menu-panel { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; width: min(288px, calc(100vw - 32px)); padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: 0 8px 28px #292a2e16; }
+.refresh-menu-title { display: block; padding: 8px 10px 6px; color: var(--muted); font-size: 11px; }
+.refresh-menu-panel > button { display: flex; gap: 10px; align-items: flex-start; text-align: left; width: 100%; min-height: 44px; padding: 13px 10px; border-radius: 7px; font-size: 13px; }
+.refresh-menu-panel > button > svg { margin-top: 1px; }
+.refresh-menu-panel > button:hover:enabled { background: var(--wash); }
+.refresh-menu-panel > button:disabled { opacity: .6; }
+.refresh-menu-panel small { display: block; margin-top: 5px; font-size: 11px; font-weight: 400; line-height: 1.5; color: var(--muted); }
+.refresh-menu-panel p { font-size: 11px; color: var(--muted); padding: 0 10px; }
+.refresh-spinning { animation: refresh-spin 1.2s linear infinite; }
+@keyframes refresh-spin { to { transform: rotate(360deg); } }
 .demo-banner { display: flex; gap: 8px; align-items: center; padding: 6px var(--gutter); background: var(--tint); color: var(--accent); font-size: 12px; }
 .workspace { max-width: 1560px; margin: auto; padding-inline: var(--gutter); }
 .room-nav {

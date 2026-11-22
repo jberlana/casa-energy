@@ -104,13 +104,25 @@ def refresh_status():
 
 @app.post("/api/refresh")
 def refresh_if_stale(request: Request):
+    require_refresh_origin(request)
+    return refresh_coordinator.request()
+
+
+def require_refresh_origin(request):
     # Same-origin, explicit browser request. Ordinary GETs remain read-only.
     origin = urlsplit(request.headers.get("origin", ""))
     if (request.headers.get("x-casa-refresh") != "1" or origin.scheme not in ("http", "https")
             or origin.netloc != request.headers.get("host")
             or request.headers.get("sec-fetch-site", "same-origin") != "same-origin"):
         raise HTTPException(403, "Origen no permitido")
-    return refresh_coordinator.request()
+
+
+@app.post('/api/refresh/{provider}')
+def refresh_provider(request: Request, provider: Literal['tado', 'hue', 'octopus'], source: Literal['real', 'demo'] = Query(...)):
+    require_refresh_origin(request)
+    if source != 'real':
+        raise HTTPException(409, 'Selecciona Mi casa para actualizar los proveedores')
+    return refresh_coordinator.request_manual(provider)
 
 
 @app.get("/api/environment")

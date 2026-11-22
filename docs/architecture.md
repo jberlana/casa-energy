@@ -41,8 +41,9 @@ docs/                     Architecture, setup and privacy
 
 Collectors own writes to their stores. `web_server` queries SQLite read-only and delegates pure
 session calculations to `heating_sessions`. `refresh_coordinator` launches only fixed installed
-commands and persists attempt limits independently of browser lifetime. `octopus_api` remains an
-explicit CLI integration; importing it does not authenticate or download anything.
+commands and persists attempt limits independently of browser lifetime. `octopus_api` remains a
+read client; importing it does not authenticate or download anything. Explicit Octopus refresh jobs
+also use it to download private documents, without promoting them to verified billing amounts.
 
 Each store has a single writer lock, bounded growth and failure preservation. Schema evolution must
 include a migration, a rollback/recovery strategy and compatibility with installed services. A copied

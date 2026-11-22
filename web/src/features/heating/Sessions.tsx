@@ -97,6 +97,7 @@ interface Invoice {
 }
 const dayLabel = (day: string) => date(Date.parse(day+'T12:00:00+01:00'),{day:'numeric',month:'short',year:'numeric'});
 export function Invoices({ historyStart, historyEnd }: { historyStart: number; historyEnd: number }) {
+  const revision = useDataRevision();
   const [invoices,setInvoices] = useState<Invoice[] | null>(null);
   const [failed,setFailed] = useState(false);
   const [retry,setRetry] = useState(0);
@@ -105,7 +106,7 @@ export function Invoices({ historyStart, historyEnd }: { historyStart: number; h
     setFailed(false);
     get<{invoices:Invoice[]}>('/api/invoices',controller.signal).then(r=>{if(!controller.signal.aborted)setInvoices(r.invoices);}).catch(()=>{if(!controller.signal.aborted)setFailed(true);});
     return ()=>controller.abort();
-  },[retry]);
+  },[retry, revision]);
   return <details className="invoices" aria-label="Facturas de gas verificadas">
     <summary className="section-title"><h2><ReceiptText size={17}/> Facturas de gas</h2><span>{invoices ? `${invoices.length} · Octopus` : 'Octopus'} <ChevronDown size={15}/></span></summary>
     {failed ? <p role="alert">No se pudieron cargar las facturas. <button className="text-button" onClick={()=>setRetry(v=>v+1)}>Reintentar</button></p> : invoices === null ? <p>Cargando facturas…</p> : !invoices.length ? <p>Todavía no hay facturas verificadas.</p> : <>

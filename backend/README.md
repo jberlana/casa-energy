@@ -16,6 +16,8 @@ runtime defaults; do not run collectors without configuring and authorizing the 
 | `tado_history` | Day reports, SQLite, retention guards, quota | Tado, read operations and auth refresh |
 | `environment_history` | Hue observations and weather history | Paired Hue bridge and Open-Meteo |
 | `octopus_api` | Explicit invoice/account read commands | Octopus Spain and signed document downloads |
+| `octopus_sync` | Bounded private invoice catalog and PDF synchronization | Octopus read client |
+| `provider_refresh` | Fixed manual jobs for the header menu | Selected provider only |
 | `web_server` | Local read API and source validation | Delegates refresh; does not expose credentials |
 | `refresh_coordinator` | Staleness, single flight and bounded processes | Fixed installed collector subprocesses |
 | `heating_sessions` | Union of demand and thermal observations | None |

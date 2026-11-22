@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Invoices } from "./features/heating/Sessions";
 import { Timeline } from "./features/heating/Timeline";
+import { RefreshMenu } from "./features/RefreshMenu";
 import {
   date,
   fmt,
@@ -158,6 +159,7 @@ function App() {
             </select>
             <ChevronDown size={14} />
           </label>
+          <RefreshMenu key={source} source={source} />
         </div>
       </header>
       {source === "demo" && (

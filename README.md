@@ -13,6 +13,7 @@ credenciales, identificadores de instalaciones ni direcciones privadas. La inter
 - Contexto meteorológico opcional mediante Open-Meteo y sensor local Hue.
 - Facturas verificadas importadas localmente, con desglose entre consumo y cargos fijos.
 - Actualización silenciosa de datos desfasados mientras la web está visible, con límites y bloqueo compartido.
+- Menú para actualizar Tado, Hue y documentos de Octopus bajo demanda, con estado y límites compartidos.
 - Acceso privado opcional por Tailscale; el servidor escucha en loopback.
 - Posibles ventilaciones en la gráfica, con confirmaciones discretas y [calibración guiada](docs/ventilation.md).
 

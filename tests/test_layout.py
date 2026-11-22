@@ -19,7 +19,7 @@ class LayoutTests(unittest.TestCase):
     def test_module_entrypoints_show_help_without_config_or_network(self):
         with tempfile.TemporaryDirectory() as directory:
             environment = {**os.environ, 'HOME': directory}
-            for module in ['backend.tado_history', 'backend.octopus_api', 'backend.window_calibration']:
+            for module in ['backend.tado_history', 'backend.octopus_api', 'backend.window_calibration', 'backend.provider_refresh']:
                 result = subprocess.run([sys.executable, '-m', module, '--help'], cwd=REPO,
                                         env=environment, capture_output=True, text=True, timeout=10)
                 self.assertEqual(result.returncode, 0, result.stderr)
@@ -53,6 +53,9 @@ class LayoutTests(unittest.TestCase):
                                   'TADO_WEB_DIST':str(installed/'dist')},capture_output=True,text=True,timeout=10)
             self.assertEqual(result.returncode,0,result.stderr)
             self.assertTrue((installed/'backend/__init__.py').is_file())
+            result = subprocess.run([sys.executable, '-m', 'backend.provider_refresh', '--help'], cwd=installed,
+                                    capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse((installed/'history.sqlite3').exists())
 
     def test_wake_preparation_uses_project_stage_and_packaged_helper(self):

@@ -1,5 +1,5 @@
-.gitignore
 .github/workflows/privacy.yml
+.gitignore
 AGENTS.md
 CONTRIBUTING.md
 Makefile
@@ -10,6 +10,8 @@ backend/__init__.py
 backend/environment_history.py
 backend/heating_sessions.py
 backend/octopus_api.py
+backend/octopus_sync.py
+backend/provider_refresh.py
 backend/refresh_coordinator.py
 backend/tado_history.py
 backend/web_server.py
@@ -39,6 +41,7 @@ tests/test_collector.py
 tests/test_environment.py
 tests/test_layout.py
 tests/test_octopus_api.py
+tests/test_provider_refresh.py
 tests/test_publication.py
 tests/test_refresh.py
 tests/test_sessions.py
@@ -49,6 +52,7 @@ web/index.html
 web/package-lock.json
 web/package.json
 web/public/favicon.svg
+web/src/features/RefreshMenu.tsx
 web/src/features/environment/Weather.tsx
 web/src/features/heating/Sessions.tsx
 web/src/features/heating/Timeline.tsx

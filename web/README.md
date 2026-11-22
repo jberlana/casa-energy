@@ -12,6 +12,7 @@ Run from the repository root. The development proxy points to the local Python A
 `dist/` and `node_modules/` are generated and must not be committed.
 
 - `src/main.tsx`: app composition, selected source/room and shared range summary.
+- `src/features/RefreshMenu.tsx`: explicit provider refresh actions, accessible keyboard navigation and bounded-job status.
 - `src/features/heating/`: chart lifecycle, touch gestures, sessions and invoice context.
   `Windows.tsx` adds small ventilation markers and an on-demand detail; it does not remount the chart.
 - `src/features/environment/`: exterior/weather data hook and weather presentation.
