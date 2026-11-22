@@ -44,8 +44,8 @@ export function WindowInsights({room, range, plot, updated}: {
   }, [room, range.min, range.max, updated, revision, reload]);
   useEffect(() => { setSelection(null); setEditing(false); setSaveError(false); }, [room]);
   useEffect(() => { if (selection) panel.current?.focus({preventScroll: true}); }, [selection]);
-  const current = data?.room === room && data.start <= Math.floor(plot.min) && data.end >= Math.ceil(plot.max) ? data : null;
-  const visible = current?.events.filter(e => e.end >= plot.min && e.start <= plot.max) ?? [];
+  const current = data?.room === room && data.start <= Math.floor(range.min) && data.end >= Math.ceil(range.max) ? data : null;
+  const visible = current?.events.filter(e => e.end >= range.min && e.start <= range.max) ?? [];
   const selected = visible.find(e => e.id === selection);
   const groups: {x: number; events: WindowEvent[]}[] = [];
   for (const event of visible) {

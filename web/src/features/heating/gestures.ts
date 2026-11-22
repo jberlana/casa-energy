@@ -3,7 +3,12 @@ import { type Range } from "../../lib/types";
 
 // Touch handling belongs to the chart, independent of React renders and fetches.
 // Horizontal gestures are captured; vertical scrolling remains the browser's job.
-export function installGestures(chart: Highcharts.Chart, bounds: () => Range, onTap?: (x: number, y: number) => void) {
+export function installGestures(
+  chart: Highcharts.Chart,
+  current: () => Range,
+  changeRange: (range: Range) => void,
+  onTap?: (x: number, y: number) => void,
+) {
   const el = chart.container;
   let startX = 0,
     startY = 0,
@@ -17,28 +22,12 @@ export function installGestures(chart: Highcharts.Chart, bounds: () => Range, on
     pending: Range | undefined;
   const position = (x: number) =>
     x - el.getBoundingClientRect().left - chart.plotLeft;
-  const current = () => ({
-    min: chart.xAxis[0].min!,
-    max: chart.xAxis[0].max!,
-  });
-  const clamp = (range: Range) => {
-    const b = bounds(),
-      width = Math.min(
-        Math.max(range.max - range.min, 15 * 60_000),
-        b.max - b.min,
-      );
-    const min = Math.max(b.min, Math.min(range.min, b.max - width));
-    return { min, max: min + width };
-  };
   const apply = (range: Range) => {
-    pending = clamp(range);
+    pending = range;
     if (!frame)
       frame = requestAnimationFrame(() => {
         frame = 0;
-        if (pending)
-          chart.xAxis[0].setExtremes(pending.min, pending.max, true, false, {
-            trigger: "gesture",
-          });
+        if (pending) changeRange(pending);
         pending = undefined;
       });
   };

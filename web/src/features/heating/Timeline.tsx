@@ -4,8 +4,6 @@ import "highcharts/modules/accessibility";
 import {
   Minus,
   Plus,
-  Sun,
-  Moon,
   RotateCw,
   ChevronLeft,
   ChevronRight,
@@ -27,7 +25,7 @@ import { useSessions, SessionDetail } from "./Sessions";
 import { WindowInsights } from "./Windows";
 import { useDataRevision } from "../../lib/refresh";
 import { installGestures } from "./gestures";
-import { useEnvironment, WeatherRibbon, condition, daylightBands, type Plot } from "../environment/Weather";
+import { useEnvironment, WeatherOverlay, condition, daylightBands, type Plot } from "../environment/Weather";
 
 Highcharts.setOptions({
   time: { timezone: "Europe/Madrid" },
@@ -40,6 +38,25 @@ interface Props {
   children?: ReactNode;
 }
 const cache = new Map<string, { data: Data; time: number; bytes: number }>();
+const NOW_COLOR = "#246fac";
+
+function axisEnd(range: Range, meta: Meta) {
+  return range.max === meta.end
+    ? range.max + Math.round((range.max - range.min) * .075)
+    : range.max;
+}
+
+function dataRange(axis: Highcharts.Axis, end: number): Range {
+  const { min, max } = axis.getExtremes();
+  return { min, max: Math.min(max, end) };
+}
+
+function fitRange(min: number, span: number, bounds: Range): Range {
+  const width = Math.min(bounds.max - bounds.min, Math.max(15 * 60_000, span));
+  const latestStart = bounds.max - width;
+  const start = Math.max(bounds.min, Math.min(min, latestStart));
+  return { min: start, max: start === latestStart ? bounds.max : start + width };
+}
 function remember(key: string, data: Data) {
   cache.delete(key);
   cache.set(key, {
@@ -152,7 +169,7 @@ export function Timeline({ meta, room, onView, children }: Props) {
   const environmentRef = useRef(environment);
   environmentRef.current = environment;
   const [showOutdoor, setShowOutdoor] = useState(true);
-  const [plot, setPlot] = useState<Plot & { height: number }>({ left: 0, top: 0, width: 0, height: 0, min: range.min, max: range.max });
+  const [plot, setPlot] = useState<Plot>({ left: 0, top: 0, width: 0, height: 0, min: range.min, max: range.max });
   const sessions = useSessions(room, range, meta.updated);
   const sessionsRef = useRef(sessions.data);
   sessionsRef.current = sessions.data;
@@ -170,6 +187,10 @@ export function Timeline({ meta, room, onView, children }: Props) {
     min: Math.min(latest.current.meta.start, latest.current.meta.end - DAY),
     max: latest.current.meta.end,
   });
+  const navigate = (min: number, max: number) => {
+    const next = fitRange(min, max - min, bounds());
+    chartRef.current?.xAxis[0].setExtremes(next.min, axisEnd(next, latest.current.meta), true, false, { trigger: "control" });
+  };
   useEffect(() => {
     if (!host.current) return;
     let alive = true,
@@ -225,7 +246,7 @@ export function Timeline({ meta, room, onView, children }: Props) {
       chart.series[4].setData(known, false, false, false);
       chart.redraw(false);
       setStatus("ready");
-      notify({ min: chart.xAxis[0].min!, max: chart.xAxis[0].max! });
+      notify(dataRange(chart.xAxis[0], latest.current.meta.end));
     };
     const load = (r: Range, force = false) => {
       wanted = r;
@@ -285,9 +306,10 @@ export function Timeline({ meta, room, onView, children }: Props) {
             )
               return;
             const axis = chartRef.current?.xAxis[0];
-            if (axis && (data.start > axis.min! || data.end < axis.max!)) {
+            const visible = axis && dataRange(axis, latest.current.meta.end);
+            if (visible && (data.start > visible.min || data.end < visible.max)) {
               // A slow response from a previous gesture must not replace the visible window.
-              load({ min: axis.min!, max: axis.max! }, true);
+              load(visible, true);
               return;
             }
             remember(key, data);
@@ -305,16 +327,18 @@ export function Timeline({ meta, room, onView, children }: Props) {
         backgroundColor: "transparent",
         animation: false,
         alignTicks: false,
-        spacing: [36, 8, 10, 0],
-        marginLeft: 46,
+        spacing: [0, 0, 10, 0],
+        marginLeft: 0,
+        marginRight: 0,
         style: { fontFamily: "inherit" },
         panning: { enabled: true, type: "x" },
         zooming: { pinchType: "x", mouseWheel: { enabled: false } },
         events: {
           render: function () {
             const el = this.container;
-            el.dataset.min = String(this.xAxis[0].min);
-            el.dataset.max = String(this.xAxis[0].max);
+            const visible = dataRange(this.xAxis[0], latest.current.meta.end);
+            el.dataset.min = String(visible.min);
+            el.dataset.max = String(visible.max);
             const next = { left: this.plotLeft, top: this.plotTop, width: this.plotWidth, height: this.plotHeight, min: this.xAxis[0].min!, max: this.xAxis[0].max! };
             setPlot(previous => Object.keys(next).every(key => previous[key as keyof typeof next] === next[key as keyof typeof next]) ? previous : next);
           },
@@ -338,7 +362,7 @@ export function Timeline({ meta, room, onView, children }: Props) {
       xAxis: {
         ordinal: false,
         min: wanted.min,
-        max: wanted.max,
+        max: axisEnd(wanted, latest.current.meta),
         minRange: 15 * 60_000,
         startOnTick: false,
         endOnTick: false,
@@ -351,9 +375,17 @@ export function Timeline({ meta, room, onView, children }: Props) {
         crosshair: { width: 1, color: "#7a818d", dashStyle: "Dash" },
         labels: { style: { color: "#667080", fontSize: "12px" } },
         events: {
+          setExtremes(e) {
+            if (e.trigger !== "pan") return;
+            // Mouse panning uses the rendered axis. Keep the selected duration free of its trailing space.
+            const visible = dataRange(this, latest.current.meta.end);
+            const next = fitRange(e.min, visible.max - visible.min, bounds());
+            e.min = next.min;
+            e.max = axisEnd(next, latest.current.meta);
+          },
           afterSetExtremes(e) {
             if (!alive) return;
-            const r = { min: e.min, max: e.max };
+            const r = { min: e.min, max: Math.min(e.max, latest.current.meta.end) };
             notify(r);
             load(r);
           },
@@ -361,14 +393,17 @@ export function Timeline({ meta, room, onView, children }: Props) {
       },
       yAxis: [
         {
-          top: "7%",
-          height: "89%",
+          top: "14%",
+          height: "82%",
           opposite: false,
           title: { text: undefined },
           labels: {
             formatter() { return fmt(Number(this.value), Number.isInteger(Number(this.value)) ? 0 : 1) + "°"; },
-            style: { color: "#667080", fontSize: "12px", textOverflow: "clip", width: 46 },
-            x: -8,
+            style: { color: "#566171", fontSize: "11px", textOutline: "2px #f9f7f3" },
+            align: "left",
+            reserveSpace: false,
+            x: 9,
+            y: -5,
           },
           gridLineColor: "#47475319",
           tickAmount: 5,
@@ -495,20 +530,22 @@ export function Timeline({ meta, room, onView, children }: Props) {
       const c = chartRef.current, data = sessionsRef.current;
       if (!c || !data || y < c.yAxis[1].toPixels(1) - 6) return;
       const t = c.xAxis[0].toValue(x);
-      if (c.xAxis[0].max! - c.xAxis[0].min! > 3*DAY) {
+      const visible = dataRange(c.xAxis[0], latest.current.meta.end);
+      if (visible.max - visible.min > 3 * DAY) {
         const day = data.days.find(d => d.start <= t && d.end > t);
-        if (day) c.xAxis[0].setExtremes(day.start, day.end, true, false);
+        if (day) navigate(day.start, day.end);
       } else {
         const session = data.sessions.find(s => s.start <= t && s.end >= t);
         if (session) selectSession(session.id);
       }
     }
-    const remove = installGestures(chart, bounds, selectAt);
+    const currentRange = () => dataRange(chart.xAxis[0], latest.current.meta.end);
+    const remove = installGestures(chart, currentRange, r => navigate(r.min, r.max), selectAt);
     load(wanted, true);
     // Refresh from SQLite, never the Tado API, without moving the selected range.
     const refresh = setInterval(() => {
       if (document.visibilityState === "visible")
-        load({ min: chart.xAxis[0].min!, max: chart.xAxis[0].max! }, true);
+        load(currentRange(), true);
     }, 60_000);
     return () => {
       alive = false;
@@ -560,7 +597,7 @@ export function Timeline({ meta, room, onView, children }: Props) {
     loaded.current = null;
     for (const i of [0, 1, 2, 4]) chart.series[i].setData([], false);
     chart.redraw(false);
-    const r = { min: chart.xAxis[0].min!, max: chart.xAxis[0].max! };
+    const r = dataRange(chart.xAxis[0], meta.end);
     latest.current.onView(null, r);
     loadRef.current(r, true);
   }, [room]);
@@ -568,7 +605,7 @@ export function Timeline({ meta, room, onView, children }: Props) {
     const chart = chartRef.current;
     if (!chart) return;
     cache.clear();
-    loadRef.current({min: chart.xAxis[0].min!, max: chart.xAxis[0].max!}, true);
+    loadRef.current(dataRange(chart.xAxis[0], meta.end), true);
   }, [revision, meta.updated]);
   useEffect(() => {
     const c = chartRef.current;
@@ -576,11 +613,21 @@ export function Timeline({ meta, room, onView, children }: Props) {
     previousEnd.current = meta.end;
     if (!c) return;
     const axis = c.xAxis[0];
-    const pinnedToNow = Math.abs(axis.max! - oldEnd) < 1000;
-    const span = axis.max! - axis.min!;
+    const visible = dataRange(axis, oldEnd);
+    const pinnedToNow = visible.max >= oldEnd - 1000;
+    const span = visible.max - visible.min;
+    axis.removePlotLine("current-time");
+    axis.addPlotLine({
+      id: "current-time", className: "current-time", value: meta.end,
+      color: NOW_COLOR, width: 2, zIndex: 4,
+      label: {
+        text: "Now", align: "right", verticalAlign: "bottom", rotation: 0, x: -7, y: -16,
+        style: { color: NOW_COLOR, fontSize: "11px", fontWeight: "600" },
+      },
+    });
     c.series[3].setData([[bounds().min, null], [bounds().max, null]], false);
     if (pinnedToNow && meta.end !== oldEnd)
-      axis.setExtremes(meta.end-span, meta.end, true, false, {trigger:'fresh-data'});
+      navigate(meta.end - span, meta.end);
     else c.redraw(false);
   }, [meta.end]);
   useEffect(() => {
@@ -591,14 +638,6 @@ export function Timeline({ meta, room, onView, children }: Props) {
         !d.samples.some((s) => s[0] >= range.min && s[0] <= range.max),
     );
   }, [range, status]);
-  const navigate = (min: number, max: number) => {
-    const b = bounds(),
-      span = Math.min(b.max - b.min, Math.max(15 * 60_000, max - min));
-    min = Math.max(b.min, Math.min(min, b.max - span));
-    chartRef.current?.xAxis[0].setExtremes(min, min + span, true, false, {
-      trigger: "control",
-    });
-  };
   const zoom = (factor: number) => {
     const half = ((range.max - range.min) * factor) / 2,
       mid = (range.max + range.min) / 2;
@@ -635,22 +674,7 @@ export function Timeline({ meta, room, onView, children }: Props) {
       >
         <div ref={host} className="chart" />
         <WindowInsights key={room} room={room} range={range} plot={plot} updated={meta.updated} />
-        <WeatherRibbon data={environment} plot={plot} />
-        {plot.width > 0 && daylightBands(environment, {min: plot.min, max: plot.max}).map(({from, to, daylight}) => {
-          const span = plot.max - plot.min;
-          const width = (to - from) / span * plot.width;
-          if (width < 30) return null;
-          const Icon = daylight ? Sun : Moon;
-          const label = daylight ? "Day" : "Night";
-          return <span
-            key={from}
-            className={`light-marker ${daylight ? "day" : "night"}`}
-            style={{ left: plot.left + ((from + to) / 2 - plot.min) / span * plot.width, top: plot.top + 6 }}
-          >
-            <Icon size={14} aria-hidden="true" />
-            <span className={width < 84 ? "sr-only" : undefined}>{label}</span>
-          </span>;
-        })}
+        <WeatherOverlay data={environment} range={range} plot={plot} />
         {empty && (
           <div className="empty-plot">
             No readings in this interval

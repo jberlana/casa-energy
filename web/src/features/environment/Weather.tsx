@@ -90,12 +90,12 @@ export function condition(code: number | null, day: boolean) {
   return { Icon: CircleHelp, label: "Unclassified", tone: "cloud" };
 }
 
-export interface Plot { left: number; top: number; width: number; min: number; max: number }
-export function WeatherRibbon({ data, plot }: { data: Environment | null; plot: Plot }) {
+export interface Plot { left: number; top: number; width: number; height: number; min: number; max: number }
+export function WeatherOverlay({ data, range, plot }: { data: Environment | null; range: Range; plot: Plot }) {
   const [selected, setSelected] = useState<number | null>(null);
   useEffect(() => { setSelected(null); }, [plot.min, plot.max]);
   useEffect(() => {
-    const close = (event: PointerEvent) => { if (!(event.target as Element).closest('.weather-ribbon')) setSelected(null); };
+    const close = (event: PointerEvent) => { if (!(event.target as Element).closest('.weather-overlay')) setSelected(null); };
     const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setSelected(null); };
     document.addEventListener('pointerdown', close);
     document.addEventListener('keydown', escape);
@@ -103,10 +103,11 @@ export function WeatherRibbon({ data, plot }: { data: Environment | null; plot: 
   }, []);
   if (!data || !plot.width) return null;
   const span = plot.max - plot.min;
-  const visible = data.weather.filter(w => w.timestamp >= plot.min && w.timestamp <= plot.max);
-  const daily = span > 3 * DAY;
-  const capacity = Math.max(1, Math.floor(plot.width / (daily ? 88 : 72)));
-  const edge = daily ? 34 : 18;
+  const visible = data.weather.filter(w => w.timestamp >= range.min && w.timestamp <= range.max);
+  const daily = range.max - range.min > 3 * DAY;
+  const capacity = Math.max(1, Math.floor(plot.width / 72));
+  // Keep weather symbols clear of the temperature scale on short displays.
+  const leftEdge = plot.height < 285 ? 48 : 18;
   const descriptions = new Map<number, string>();
   const candidates = daily ? data.days.flatMap(d => {
     const hours = visible.filter(w => w.timestamp >= d.start && w.timestamp < d.end);
@@ -125,20 +126,20 @@ export function WeatherRibbon({ data, plot }: { data: Environment | null; plot: 
   const items: WeatherHour[] = [];
   for (const w of candidates) {
     const x = (w.timestamp - plot.min) / span * plot.width;
-    if (x < edge || x > plot.width - edge) continue;
+    if (x < leftEdge || x > plot.width - 18) continue;
     if (!items.length || w.timestamp - items[items.length - 1].timestamp >= step) items.push(w);
   }
   const active = items.find(w => w.timestamp === selected);
   const activeX = active ? (active.timestamp - plot.min) / span * plot.width : 0;
-  return <div className="weather-ribbon" aria-label="Hourly local weather" style={{ left: plot.left, width: plot.width, top: 2 }}>
+  return <div className="weather-overlay" role="group" aria-label={daily ? "Daily local weather" : "Hourly local weather"} style={{ left: plot.left, width: plot.width, top: plot.top }}>
     <div className="weather-icons">
     {items.map(w => {
       const { Icon, label, tone } = condition(w.code, w.is_day === 1);
       const x = (w.timestamp - plot.min) / span * plot.width;
-      const description = descriptions.get(w.timestamp) ?? `${date(w.timestamp)} · ${label} · Local ${fmt(w.temperature)} °C${w.precipitation === null ? "" : ` · ${fmt(w.precipitation)} mm in the previous hour`} · Open-Meteo estimate`;
+      const daylight = w.is_day === null ? "" : w.is_day === 1 ? " · Day" : " · Night";
+      const description = descriptions.get(w.timestamp) ?? `${date(w.timestamp)}${daylight} · ${label} · Local ${fmt(w.temperature)} °C${w.precipitation === null ? "" : ` · ${fmt(w.precipitation)} mm in the previous hour`} · Open-Meteo estimate`;
       return <button key={w.timestamp} className={`weather-mark ${tone}`} style={{ left: x }} aria-label={description} aria-expanded={selected === w.timestamp} aria-controls={selected === w.timestamp ? 'weather-detail' : undefined} onClick={() => setSelected(selected === w.timestamp ? null : w.timestamp)}>
-        <Icon size={20} strokeWidth={1.6} />
-        {span > 3 * DAY && <small>{date(w.timestamp, { day: "numeric", month: "short" })}</small>}
+        <Icon size={16} strokeWidth={1.75} aria-hidden="true" />
       </button>;
     })}
     </div>
