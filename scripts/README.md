@@ -1,7 +1,10 @@
 # Project tools
 
-`check_publication.py` validates reviewed files in the Git index. It never prints matched secret
-values. Run it after deliberately staging the manifest and intended changes.
+`check_publication.py` validates reviewed files in the Git index, commit identities/messages and the
+pending identity. It never prints matched secret values. Run it after deliberately staging the manifest
+and intended changes. `--all-branches` includes local and origin branches, excluding archived PR refs.
+Names must be GitHub aliases and emails must be GitHub noreply addresses. CI also runs Gitleaks against
+branch history; checks do not rewrite published commits or purge GitHub caches.
 
 `macos/` contains platform installation tools. Execute them **as modules from the repository root**:
 

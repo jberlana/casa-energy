@@ -27,9 +27,17 @@ when using another backend port. Do not commit a personal hostname.
    limits. Push within the authorized task scope. If a pull request was explicitly requested, use
    that workflow instead.
 
-`make check-publication` reads the Git index. Stage both the manifest and changed files before
-running it; passing the check does not validate unstaged edits. It is an additional guard, not proof
-that arbitrary data is anonymous. Never include real household data in issues, PRs or test artifacts.
+`make check-publication` reads the Git index, the current branch's commit identities/messages and
+the pending author/committer identity. Stage both the manifest and changed files before running it;
+passing the check does not validate unstaged edits. Use a GitHub alias for `user.name` and your
+GitHub-provided `noreply` address for `user.email`. Enable email privacy in GitHub settings as well:
+commits created by the web interface do not use your local Git configuration.
+
+CI checks all local/origin branch identities and scans their full history with Gitleaks. This runs
+after pushes and on pull requests; it cannot prevent a direct push from exposing data before it fails.
+Run the local check before every push. GitHub's archived PR refs are outside these branch checks and
+may retain old objects after a history rewrite. Never include real household data in issues, PRs or
+test artifacts. Automated checks do not prove that arbitrary data is anonymous.
 
 ## Structure and boundaries
 

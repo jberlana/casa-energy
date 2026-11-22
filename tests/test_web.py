@@ -102,6 +102,15 @@ class HistoryWebTests(unittest.TestCase):
         with self.assertRaises(HTTPException): web.get_data('not-real',1,0,50)
         with self.assertRaises(HTTPException): web.get_data('real',999,0,50)
 
+    def test_demo_room_ids_keep_readings_in_a_plausible_range_without_private_data(self):
+        with patch.object(web, 'database', side_effect=AssertionError('private access')):
+            rooms = web.metadata('demo')['rooms']
+            self.assertEqual([r['id'] for r in rooms], [101, 102, 103, 104])
+            for room in rooms:
+                samples, _ = web.get_data('demo', room['id'], web.DEMO_END-web.DAY, web.DEMO_END)
+                self.assertTrue(samples)
+                self.assertTrue(all(10 < sample[1] < 30 and 0 < sample[2] < 100 for sample in samples))
+
 
 if __name__ == '__main__':
     unittest.main()

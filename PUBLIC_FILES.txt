@@ -1,4 +1,5 @@
 .gitignore
+.github/workflows/privacy.yml
 AGENTS.md
 CONTRIBUTING.md
 Makefile
@@ -38,6 +39,7 @@ tests/test_collector.py
 tests/test_environment.py
 tests/test_layout.py
 tests/test_octopus_api.py
+tests/test_publication.py
 tests/test_refresh.py
 tests/test_sessions.py
 tests/test_web.py
