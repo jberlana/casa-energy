@@ -142,6 +142,7 @@ class ManualRefreshTests(unittest.TestCase):
         self.c.runner = lambda *a, **kw: SimpleNamespace(returncode=1)
         self.c.request_manual('hue'); self.finish()
         self.assertEqual(self.c.status()['providers']['hue']['lastSuccess'], successful)
+        self.now += 1
         stamp = refresh.datetime.fromtimestamp(self.now, refresh.timezone.utc).isoformat()
         tado.state_set(self.db, 'last_success', stamp)
         self.db.commit()
@@ -155,6 +156,7 @@ class ManualRefreshTests(unittest.TestCase):
         state = self.c.status()['providers']
         for provider in ('tado', 'hue', 'octopus'):
             self.assertEqual(state[provider]['lastSuccess'], int(self.now*1000))
+        self.assertEqual(state['hue']['state'], 'updated')
 
     def test_unknown_provider_cannot_become_a_command(self):
         with self.assertRaises(ValueError): self.c.request_manual('../../anything')

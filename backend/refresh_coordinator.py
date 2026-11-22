@@ -58,6 +58,9 @@ class Coordinator:
                 value['state'] = 'interrupted'
         for name, value in providers.items():
             value['lastSuccess'] = max(value.get('lastSuccess') or 0, self.last_success(name)) or None
+            if (name in ('tado', 'hue') and value.get('state') != 'running'
+                    and (value['lastSuccess'] or 0) > value.get('at', 0)):
+                value['state'] = 'updated'
         providers['tado']['availability'] = self.tado_admission(self.clock(), s)
         return {'running':running, 'revision':s.get('revision',0), 'providers':providers}
 
