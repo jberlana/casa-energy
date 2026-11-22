@@ -90,23 +90,15 @@ class Calibration:
 
     def quota(self, db, cfg, needed):
         now = self.clock()
-        blocked = tado.state_get(db, 'api_blocked_until')
-        if blocked and tado.parse(blocked).timestamp() * 1000 > now:
-            raise ValueError('Tado quota pause is active')
-        rooms = db.execute('SELECT count(*) FROM rooms WHERE active=1').fetchone()[0]
-        scheduled = len(cfg['slots']) * (rooms + 3)
-        day = datetime.fromtimestamp(now / 1000, timezone.utc).date().isoformat()
-        used = db.execute('SELECT coalesce(sum(count),0) FROM request_counts WHERE day=?', (day,)).fetchone()[0]
-        if used + scheduled + needed > cfg['daily_request_limit']:
-            raise ValueError('Insufficient daily quota after scheduled reserve')
+        decision = tado.tado_quota.budget(db, cfg, now/1000, needed=needed, scheduled=True)
+        if not decision['allowed']:
+            raise ValueError(f"Calibration paused: {decision['reason']}")
         server = tado.state_get(db, 'server_quota')
         if not server or not isinstance(server.get('remaining'), int) or not server.get('observed_at'):
             raise ValueError('A recent regular collection must establish the server quota first')
         age = now - int(tado.parse(server['observed_at']).timestamp() * 1000)
-        if age < 0 or age > DAY:
+        if age < 0 or age >= DAY:
             raise ValueError('Server quota observation is stale')
-        if server['remaining'] < scheduled + needed + cfg['server_quota_reserve']:
-            raise ValueError('Insufficient server quota after reserve')
 
     def start(self, room):
         now = self.clock()

@@ -92,3 +92,39 @@ refresh hint changes. Chart touches, controls, horizontal movement, pinches and 
 are excluded. The menu also offers Refresh all for keyboard and desktop use. One server request reserves all eligible providers under the shared lock, with
 independent quotas and results; a skipped or failed provider does not stop the others. The hint
 reports partial completion, and the menu gives the individual reasons. Graphs keep their viewport.
+
+## Adaptive Tado request budget
+
+The collector, web refresh and calibration share `tado_quota`. A recent valid
+`ratelimit-policy` (`q` and `w`) sets the allowance with a safety reserve of at least
+20% or `server_quota_reserve`, whichever is greater. No valid policy means a conservative
+100-request reference and a maximum usable budget of 80 (or a lower `daily_request_limit`).
+Set `adaptive_quota: false` in private configuration to retain that fixed local cap even
+when the server announces a larger allowance. The normal default is adaptive.
+
+Every outbound attempt, including authentication and retries, enters a bounded rolling 24-hour
+ledger in the existing SQLite `state` table. UTC daily counters remain for diagnostics;
+midnight does not refill the rolling budget. When upgrading an existing installation, daily
+counts are placed at the latest possible time within their day, conservatively preserving
+past usage. No climate schema or stored measurements change. The ledger retains at most one
+bucket per minute. Updated server remaining counts are reduced by subsequent local attempts,
+including requests that produce no quota headers. Other clients may still consume the account
+allowance between observations; the next response reconciles it.
+
+Manual/automatic web refresh and calibrations reserve only unfinished upcoming collection
+slots, plus the latest missed slot if still eligible for retry. If the server provides a reset
+deadline, the reserve also covers slots before that deadline (up to the next 24 hours).
+Successful/past superseded slots are excluded. Scheduled collection uses the shared budget
+without reserving its own work a second time. The four-extra-web-attempts daily cap and
+30-minute cooldown remain distinct local guards.
+
+`ratelimit` remaining/reset fields and `Retry-After` (seconds or HTTP date) control pauses.
+HTTP 429 without a deadline pauses for 24 hours. After an observation expires, the code falls
+back conservatively; it does not assume the remote quota has refilled. The menu distinguishes
+server pauses, safety margins, local budgets, upcoming collection reserves, web-attempt limits
+and cooldowns. “Check again” is a reevaluation time, not a guaranteed provider reset.
+
+Deploy both the collector and web package together: their quota accounting must agree.
+The collector installer copies `tado_quota.py` alongside the standalone script. A rollback
+must stop all writers and preserve request counters; before restarting an older/newer mix,
+reconcile usage conservatively from those counters. Do not reset counters to regain quota.

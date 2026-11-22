@@ -13,6 +13,7 @@ runtime defaults; do not run collectors without configuring and authorizing the 
 
 | Module | Owns | External access |
 |---|---|---|
+| `tado_quota` | Shared adaptive quota, rolling usage and pending schedule reserve | None |
 | `tado_history` | Day reports, SQLite, retention guards, quota | Tado, read operations and auth refresh |
 | `environment_history` | Hue observations and weather history | Paired Hue bridge and Open-Meteo |
 | `octopus_api` | Explicit invoice/account read commands | Octopus Spain and signed document downloads |

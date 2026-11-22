@@ -19,6 +19,7 @@ def main():
     binary = root / "bin"
     binary.mkdir(exist_ok=True, mode=0o700)
     shutil.copy2(Path(__file__).resolve().parents[2] / "backend/tado_history.py", binary / "tado_history.py")
+    shutil.copy2(Path(__file__).resolve().parents[2] / "backend/tado_quota.py", binary / "tado_quota.py")
     config = root / "config.json"
     if not config.exists():
         tado.atomic_json(config, tado.DEFAULTS)

@@ -12,7 +12,6 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 from pathlib import Path
-import re
 import shutil
 import signal
 import sqlite3
@@ -23,6 +22,11 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from zoneinfo import ZoneInfo
+
+if __package__:
+    from . import tado_quota
+else:
+    import tado_quota
 
 ROOT = Path.home() / "Library/Application Support/TadoHistory"
 UTC = timezone.utc
@@ -38,6 +42,7 @@ DEFAULTS = {
     "database_limit_bytes": 64 * MIB,
     "minimum_free_bytes": 1024 * MIB,
     "daily_request_limit": 80,
+    "adaptive_quota": True,
     "server_quota_reserve": 20,
     "max_attempts_per_slot": 3,
     "retry_seconds": 120,
@@ -261,28 +266,14 @@ class API:
         self.auth = json.loads(self.auth_path.read_text())
 
     def reserve_request(self):
-        now = utcnow()
-        blocked = state_get(self.db, "api_blocked_until")
-        if blocked and parse(blocked) > now:
-            raise CollectorError("Tado quota pause is active")
-        day = now.date().isoformat()
-        with self.db:
-            row = self.db.execute("SELECT count FROM request_counts WHERE day=?", (day,)).fetchone()
-            count = row[0] if row else 0
-            if count >= self.config["daily_request_limit"]:
-                raise CollectorError("Local daily request limit reached")
-            self.db.execute("INSERT OR REPLACE INTO request_counts VALUES (?,?)", (day, count + 1))
+        try:
+            tado_quota.reserve_request(self.db, self.config, utcnow().timestamp())
+        except ValueError as exc:
+            raise CollectorError(f"Request paused: {exc}") from None
 
     def headers(self, headers, status=200):
-        value = headers.get("ratelimit", "")
-        remaining = re.search(r"(?:^|;)\s*r=(\d+)", value)
-        reset = re.search(r"(?:^|;)\s*t=(\d+)", value)
-        if remaining:
-            state_set(self.db, "server_quota", {"remaining": int(remaining[1]), "policy": headers.get("ratelimit-policy"), "observed_at": stamp()})
-        if status == 429 or (remaining and int(remaining[1]) <= self.config["server_quota_reserve"]):
-            retry = headers.get("Retry-After", "")
-            seconds = int(reset[1]) if reset else int(retry) if retry.isdigit() else 86400
-            state_set(self.db, "api_blocked_until", stamp(utcnow() + timedelta(seconds=max(120, seconds))))
+        with self.db:
+            tado_quota.observe(self.db, headers, status, utcnow().timestamp())
 
     def refresh(self):
         client_id = self.config.get("client_id")
@@ -293,6 +284,7 @@ class API:
         request = urllib.request.Request("https://login.tado.com/oauth2/token", data=body, headers={"Content-Type": "application/x-www-form-urlencoded"})
         try:
             with urllib.request.urlopen(request, timeout=20) as response:
+                self.headers(response.headers)
                 updated = json.loads(response.read(1024 * 1024))
         except urllib.error.HTTPError as exc:
             self.headers(exc.headers, exc.code)
@@ -360,6 +352,8 @@ def backup(db, root, config, day):
 
 
 def collect(db, root, config, force=False):
+    if force:
+        config = config | {'reserve_scheduled': True}
     now = utcnow()
     slot_info = due_slot(db, config, now)
     if force:
@@ -461,7 +455,7 @@ def status(db, root, config):
             "metadata_warning": state_get(db, "metadata_warning"),
             "storage_bytes": storage_bytes(root), "storage_limit_bytes": config["storage_limit_bytes"],
             "database_limit_bytes": config["database_limit_bytes"], "free_disk_bytes": shutil.disk_usage(root).free,
-            "quota": state_get(db, "server_quota"), "api_blocked_until": state_get(db, "api_blocked_until"),
+            "quota": state_get(db, "server_quota"), "request_budget": tado_quota.budget(db, config, utcnow().timestamp(), scheduled=True), "api_blocked_until": state_get(db, "api_blocked_until"),
             "requests_today": db.execute("SELECT COALESCE(SUM(count),0) FROM request_counts WHERE day=?", (utcnow().date().isoformat(),)).fetchone()[0],
             "daily_request_limit": config["daily_request_limit"], "collection_times": config["slots"],
             "sample_rows": db.execute("SELECT COUNT(*) FROM samples").fetchone()[0],

@@ -78,7 +78,7 @@ def main():
     package = root / "backend"
     package.mkdir(exist_ok=True)
     for name in ("__init__.py", "web_server.py", "refresh_coordinator.py", "environment_history.py", "heating_sessions.py",
-                 "window_detection.py", "window_store.py", "provider_refresh.py", "octopus_sync.py", "octopus_api.py", "tado_history.py"):
+                 "window_detection.py", "window_store.py", "provider_refresh.py", "octopus_sync.py", "octopus_api.py", "tado_history.py", "tado_quota.py"):
         shutil.copy2(PROJECT / "backend" / name, package / name)
     verified = PROJECT / "output/octopus/verified-invoices.json"
     if verified.exists():

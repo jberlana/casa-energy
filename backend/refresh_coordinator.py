@@ -12,6 +12,7 @@ import sys
 import tempfile
 import threading
 import time
+from . import tado_quota
 
 HOME = Path.home() / 'Library/Application Support'
 MINUTE = 60
@@ -57,6 +58,7 @@ class Coordinator:
                 value['state'] = 'interrupted'
         for name, value in providers.items():
             value['lastSuccess'] = max(value.get('lastSuccess') or 0, self.last_success(name)) or None
+        providers['tado']['availability'] = self.tado_admission(self.clock(), s)
         return {'running':running, 'revision':s.get('revision',0), 'providers':providers}
 
     def last_success(self, provider):
@@ -74,28 +76,42 @@ class Coordinator:
         except (OSError, sqlite3.Error, ValueError, TypeError):
             return 0
 
+    def tado_budget(self, now):
+        path = self.history/'history.sqlite3'
+        if not path.is_file() or not (self.history/'config.json').is_file():
+            return {'allowed': False, 'reason': 'unavailable', 'retryAt': None}
+        try:
+            with closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True, timeout=2)) as db:
+                db.execute('BEGIN')
+                rooms = db.execute('SELECT count(*) FROM rooms WHERE active=1').fetchone()[0]
+                return tado_quota.budget(db, read_json(self.history/'config.json'), now,
+                                         needed=max(1, rooms)+3, scheduled=True)
+        except (sqlite3.Error, ValueError, TypeError, KeyError):
+            return {'allowed': False, 'reason': 'unavailable', 'retryAt': None}
+
+    def tado_admission(self, now, state):
+        decision = self.tado_budget(now)
+        if not decision['allowed']: return decision
+        if now-state.get('tadoAttempt', 0) < 30*MINUTE:
+            return {**decision, 'allowed': False, 'reason': 'cooldown',
+                    'retryAt': int((state['tadoAttempt']+30*MINUTE)*1000)}
+        day = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
+        if state.get('day') == day and state.get('tadoCount', 0) >= 4:
+            midnight = datetime.fromtimestamp(now, timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).timestamp()+86400
+            return {**decision, 'allowed': False, 'reason': 'web_limit', 'retryAt': int(midnight*1000)}
+        return decision
+
     def tado_due(self, now, force=False):
         path=self.history/'history.sqlite3'
-        cfg=read_json(self.history/'config.json')
         if not path.exists(): return False
         try:
             with closing(sqlite3.connect(f'file:{path}?mode=ro',uri=True,timeout=2)) as db:
                 db.execute('BEGIN')
-                count=db.execute('SELECT count(*) FROM rooms WHERE active=1').fetchone()[0]
                 rows=db.execute('SELECT (SELECT max(fetched_at) FROM reports p WHERE p.home_id=r.home_id AND p.room_id=r.room_id), '
                                 '(SELECT max(timestamp) FROM samples s WHERE s.home_id=r.home_id AND s.room_id=r.room_id) '
                                 'FROM rooms r WHERE active=1').fetchall()
                 stale=not rows or any(now-epoch(fetched)>30*MINUTE or now-epoch(sample)>45*MINUTE for fetched,sample in rows)
-                states={k:json.loads(v) for k,v in db.execute("SELECT key,value FROM state WHERE key IN ('api_blocked_until','server_quota')")}
-                if epoch(states.get('api_blocked_until'))>now: return False
-                day=datetime.fromtimestamp(now,timezone.utc).date().isoformat()
-                used=db.execute('SELECT COALESCE(SUM(count),0) FROM request_counts WHERE day=?',(day,)).fetchone()[0]
-                # Preserve a conservative full day's scheduled allowance, including auth/metadata.
-                cycle=max(1,count)+3
-                scheduled=len(cfg.get('slots',[1,2,3,4]))*cycle
-                if used+cycle+scheduled>cfg.get('daily_request_limit',80): return False
-                remaining=states.get('server_quota',{}).get('remaining')
-                if remaining is not None and remaining < cfg.get('server_quota_reserve',20)+cycle+scheduled: return False
+                if not self.tado_budget(now)['allowed']: return False
                 return force or stale
         except (sqlite3.Error,ValueError,TypeError):
             return False
@@ -176,15 +192,13 @@ class Coordinator:
                 last = state.get(attempt_key, 0)
                 if name == 'hue':
                     last = max(last, state.get('environmentAttempt', 0))
-                reason = None
-                if now - last < cooldown:
-                    reason = 'cooldown'
-                elif name == 'tado' and (not (self.history/'config.json').exists() or not (self.history/'history.sqlite3').exists()):
-                    reason = 'unavailable'
-                elif name == 'tado' and (state.get('tadoCount', 0) >= 4 or not self.tado_due(now, force=True)):
-                    reason = 'quota'
-                decisions[name] = {'accepted': reason is None, 'reason': reason,
-                                   'retryAt': int((last+cooldown)*1000) if reason == 'cooldown' else None}
+                reason, retry_at = None, None
+                if name == 'tado':
+                    decision = self.tado_admission(now, state)
+                    reason, retry_at = decision['reason'], decision['retryAt']
+                elif now - last < cooldown:
+                    reason, retry_at = 'cooldown', int((last+cooldown)*1000)
+                decisions[name] = {'accepted': reason is None, 'reason': reason, 'retryAt': retry_at}
                 if reason:
                     continue
                 state[attempt_key] = now

@@ -14,6 +14,7 @@ backend/octopus_sync.py
 backend/provider_refresh.py
 backend/refresh_coordinator.py
 backend/tado_history.py
+backend/tado_quota.py
 backend/web_server.py
 backend/window_calibration.py
 backend/window_detection.py
@@ -45,6 +46,7 @@ tests/test_provider_refresh.py
 tests/test_publication.py
 tests/test_refresh.py
 tests/test_sessions.py
+tests/test_tado_quota.py
 tests/test_web.py
 tests/test_windows.py
 web/README.md

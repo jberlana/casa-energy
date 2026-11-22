@@ -19,6 +19,7 @@ class RefreshTests(unittest.TestCase):
         self.calls=[]
         self.c=refresh.Coordinator(self.base/'web',self.base/'tado',self.base/'env',clock=lambda:self.now,runner=self.run_job, octopus=self.base/'octopus')
         self.c.root.mkdir();self.c.history.mkdir();self.c.environment.mkdir()
+        (self.c.history/'config.json').write_text('{}')
         (self.c.history/'bin').mkdir();(self.c.history/'bin/tado_history.py').touch()
         (self.c.environment/'environment_history.py').touch()
         self.db=tado.connect(self.c.history,tado.DEFAULTS)

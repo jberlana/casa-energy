@@ -56,14 +56,14 @@ class ManualRefreshTests(unittest.TestCase):
         self.assertEqual(self.c.status()['providers']['tado']['state'], 'updated')
         tado.state_set(self.db, 'api_blocked_until', '2099-01-01T00:00:00+00:00')
         self.now += 1801
-        self.assertEqual(self.c.request_manual('tado')['request']['reason'], 'quota')
+        self.assertEqual(self.c.request_manual('tado')['request']['reason'], 'server_quota')
         self.assertEqual(len(self.calls), 1)
 
     def test_manual_limits_persist_and_are_shared_with_automatic_refresh(self):
         with patch.object(self.c, 'tado_due', return_value=True):
             for _ in range(4):
                 self.c.request_manual('tado'); self.finish(); self.now += 1801
-            self.assertEqual(self.c.request_manual('tado')['request']['reason'], 'quota')
+            self.assertEqual(self.c.request_manual('tado')['request']['reason'], 'web_limit')
         self.assertEqual(len(self.calls), 4)
         state = refresh.read_json(self.c.root/'refresh.json')
         self.assertEqual(state['tadoCount'], 4)
@@ -128,10 +128,10 @@ class ManualRefreshTests(unittest.TestCase):
             release.set(); self.finish()
 
     def test_general_refresh_skips_tado_quota_without_blocking_other_providers(self):
-        with patch.object(self.c, 'tado_due', return_value=False):
+        with patch.object(self.c, 'tado_budget', return_value={'allowed': False, 'reason': 'local_budget', 'retryAt': None}):
             result = self.c.request_manual('all')
             self.finish()
-        self.assertEqual(result['request']['decisions']['tado']['reason'], 'quota')
+        self.assertEqual(result['request']['decisions']['tado']['reason'], 'local_budget')
         self.assertCountEqual([c[0][-1] for c in self.calls], ['hue', 'octopus'])
         self.assertEqual(refresh.read_json(self.c.root/'refresh.json')['tadoCount'], 0)
 

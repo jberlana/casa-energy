@@ -6,19 +6,28 @@ import { date } from '../lib/types';
 
 type Provider = 'tado' | 'hue' | 'octopus';
 type Target = Provider | 'all';
+interface Availability {allowed?: boolean; reason?: string | null; retryAt?: number | null; remaining?: number | null; limit?: number; observedAt?: number | null;}
 interface State {
   running: boolean; revision: number;
-  providers: Record<Provider, {state: string; at?: number; lastSuccess?: number | null}>;
-  request?: {provider: Target; accepted: boolean; reason?: string; retryAt?: number; decisions?: Partial<Record<Provider, {accepted: boolean; reason?: string}>>};
+  providers: Record<Provider, {state: string; at?: number; lastSuccess?: number | null; availability?: Availability}>;
+  request?: {provider: Target; accepted: boolean; reason?: string; retryAt?: number; decisions?: Partial<Record<Provider, {accepted: boolean; reason?: string; retryAt?: number | null}>>};
 }
 const providers: [Target, string][] = [['tado', 'Tado'], ['hue', 'Hue'], ['octopus', 'Octopus'], ['all', 'all']];
 const labels: Record<string, string> = {
   running: 'Refreshing…', updated: 'Updated', failed: 'Could not refresh. You can try again.',
   unavailable: 'Check the provider connection.', busy: 'Another refresh is in progress.',
-  quota: 'Request limit reached. Try again later.', cooldown: 'Wait before refreshing again.',
+  server_quota: 'Tado has paused requests.', safety_reserve: 'Keeping the Tado safety reserve.',
+  local_budget: 'Local request budget reached.', scheduled_reserve: 'Reserved for upcoming scheduled readings.',
+  web_limit: 'Daily limit for extra web refreshes reached.',
+  quota: 'Request budget changed. Check the current availability.', cooldown: 'Wait before refreshing again.',
   interrupted: 'The refresh was interrupted.', pending_review: 'Documents available · amounts awaiting verification',
   partial: 'Documents downloaded · more remain for the next refresh',
 };
+
+function pauseText(decision: Availability) {
+  const text = labels[decision.reason ?? 'failed'] ?? labels.failed;
+  return text + (decision.retryAt ? ` Check again ${date(decision.retryAt)}.` : '');
+}
 
 export function RefreshMenu() {
   const [open, setOpen] = useState(false);
@@ -95,12 +104,11 @@ export function RefreshMenu() {
       if (!active.current) return;
       accept(next);
       if (provider === 'all') {
-        setBlocked(Object.fromEntries(Object.entries(next.request?.decisions ?? {}).filter(([, d]) => !d.accepted).map(([name, d]) => [name, labels[d.reason ?? 'failed'] ?? labels.failed])));
+        setBlocked(Object.fromEntries(Object.entries(next.request?.decisions ?? {}).filter(([name, d]) => name !== 'tado' && !d.accepted).map(([name, d]) => [name, pauseText(d)])));
         skipped.current = !next.request?.accepted || Object.values(next.request?.decisions ?? {}).some(d => !d.accepted);
       }
-      if (next.request && !next.request.accepted) {
-        const retry = next.request.retryAt ? ` Available at ${date(next.request.retryAt, {hour:'2-digit',minute:'2-digit'})}.` : '';
-        setMessage({provider, text: provider === 'all' && !next.request.reason ? 'No providers refreshed. See individual status.' : (labels[next.request.reason ?? 'failed'] ?? labels.failed) + retry});
+      if (next.request && !next.request.accepted && provider !== 'tado') {
+        setMessage({provider, text: provider === 'all' && !next.request.reason ? 'No providers refreshed. See individual status.' : pauseText(next.request)});
       }
       if (!next.running && next.request?.accepted) window.dispatchEvent(new Event(DATA_UPDATED));
     } catch {
@@ -144,8 +152,10 @@ export function RefreshMenu() {
         const providerState = provider === 'all' ? null : state?.providers?.[provider];
         const status = providerState?.state;
         const last = providerState?.lastSuccess;
-        const detail = message?.provider === provider ? message.text : provider !== 'all' && blocked[provider] ? blocked[provider] : pending === provider || (pending === 'all' && status === 'running') ? labels.running : labels[status ?? 'idle'];
-        return <button key={provider} role="menuitem" ref={el => {items.current[i] = el;}} disabled={disabled} onClick={() => void refresh(provider)}>
+        const availability = providerState?.availability;
+        const pause = availability && !availability.allowed ? pauseText(availability) : null;
+        const detail = message?.provider === provider ? message.text : provider !== 'all' && blocked[provider] ? blocked[provider] : pending === provider || (pending === 'all' && status === 'running') ? labels.running : pause ?? labels[status ?? 'idle'];
+        return <button key={provider} role="menuitem" ref={el => {items.current[i] = el;}} disabled={disabled || availability?.allowed === false} onClick={() => void refresh(provider)}>
           <RefreshCw size={15} className={status === 'running' || pending === provider ? 'refresh-spinning' : ''}/>
           <span>Refresh {label}{detail && <small aria-live="polite">{detail}</small>}{provider !== 'all' && <small className="refresh-last">{last ? <>Last refreshed <time dateTime={new Date(last).toISOString()}>{date(last)}</time></> : state ? 'No successful refresh recorded' : 'Checking last refresh…'}</small>}</span>
         </button>;
