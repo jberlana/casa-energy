@@ -7,8 +7,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-import tado_history as collector
-import web_server as web
+from backend import tado_history as collector
+from backend import web_server as web
 from fastapi import HTTPException
 
 

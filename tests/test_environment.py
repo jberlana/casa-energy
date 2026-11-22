@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-import environment_history as env
-import web_server as web
+from backend import environment_history as env
+from backend import web_server as web
 
 
 class EnvironmentTests(unittest.TestCase):

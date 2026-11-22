@@ -1,7 +1,7 @@
-import { useDataRevision } from "./refresh";
+import { useDataRevision } from "../../lib/refresh";
 import { useEffect, useState } from "react";
 import { Flame, ReceiptText, ChevronDown, Maximize2 } from "lucide-react";
-import { DAY, date, fmt, get, type Range, type Source } from "./types";
+import { DAY, date, fmt, get, type Range, type Source } from "../../lib/types";
 
 type Estimate = { low: number; high: number } | null;
 
