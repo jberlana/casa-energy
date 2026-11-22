@@ -118,7 +118,7 @@ def require_refresh_origin(request):
 
 
 @app.post('/api/refresh/{provider}')
-def refresh_provider(request: Request, provider: Literal['tado', 'hue', 'octopus'], source: Literal['real', 'demo'] = Query(...)):
+def refresh_provider(request: Request, provider: Literal['tado', 'hue', 'octopus', 'all'], source: Literal['real', 'demo'] = Query(...)):
     require_refresh_origin(request)
     if source != 'real':
         raise HTTPException(409, 'Select My home to refresh providers')

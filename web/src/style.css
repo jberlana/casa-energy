@@ -370,3 +370,7 @@ details[open] > .session-facts, details[open] > .invoice-list { animation: appea
 .window-navigation { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--line); margin-top: 8px; }
 .window-navigation button { min-height: 44px; }
 .window-navigation span { color: var(--muted); font-size: 11px; }
+
+html.pull-refresh-enabled { overscroll-behavior-y: none; }
+.refresh-menu-panel .refresh-last { font-size: 10px; }
+.pull-refresh-status { position: fixed; top: 62px; left: 50%; transform: translateX(-50%); z-index: 40; display: flex; align-items: center; gap: 8px; width: max-content; max-width: calc(100vw - 32px); padding: 10px 14px; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); color: var(--muted); box-shadow: 0 4px 20px #292a2e16; font-size: 12px; pointer-events: none; }

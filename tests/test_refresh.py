@@ -17,7 +17,7 @@ class RefreshTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory();self.base=Path(self.temp.name)
         self.now=1795348800.
         self.calls=[]
-        self.c=refresh.Coordinator(self.base/'web',self.base/'tado',self.base/'env',clock=lambda:self.now,runner=self.run_job)
+        self.c=refresh.Coordinator(self.base/'web',self.base/'tado',self.base/'env',clock=lambda:self.now,runner=self.run_job, octopus=self.base/'octopus')
         self.c.root.mkdir();self.c.history.mkdir();self.c.environment.mkdir()
         (self.c.history/'bin').mkdir();(self.c.history/'bin/tado_history.py').touch()
         (self.c.environment/'environment_history.py').touch()
@@ -40,7 +40,7 @@ class RefreshTests(unittest.TestCase):
         self.c.runner=slow
         with patch.object(self.c,'tado_due',return_value=True),patch.object(self.c,'environment_due',return_value=False):
             self.assertTrue(self.c.request()['running']);entered.wait(1)
-            other=refresh.Coordinator(self.c.root,self.c.history,self.c.environment,clock=lambda:self.now,runner=self.run_job)
+            other=refresh.Coordinator(self.c.root,self.c.history,self.c.environment,clock=lambda:self.now,runner=self.run_job, octopus=self.base/'octopus')
             self.assertTrue(other.request()['running']);self.assertEqual(self.calls,[])
             release.set();self.finish()
         self.assertFalse(self.c.status()['running'])
@@ -48,7 +48,7 @@ class RefreshTests(unittest.TestCase):
         self.c.runner=lambda *a,**k:SimpleNamespace(returncode=1)
         with patch.object(self.c,'tado_due',return_value=True),patch.object(self.c,'environment_due',return_value=False):
             self.c.request();self.finish()
-        other=refresh.Coordinator(self.c.root,self.c.history,self.c.environment,clock=lambda:self.now+60,runner=self.run_job)
+        other=refresh.Coordinator(self.c.root,self.c.history,self.c.environment,clock=lambda:self.now+60,runner=self.run_job, octopus=self.base/'octopus')
         with patch.object(other,'tado_due',return_value=True),patch.object(other,'environment_due',return_value=False):other.request()
         self.assertEqual(self.calls,[])
         self.assertEqual(refresh.read_json(self.c.root/'refresh.json')['results']['tado'],'failed')

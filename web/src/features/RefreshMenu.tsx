@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { Ellipsis, RefreshCw } from 'lucide-react';
+import { usePullRefresh } from './usePullRefresh';
 import { DATA_UPDATED } from '../lib/refresh';
-import type { Source } from '../lib/types';
+import { date, type Source } from '../lib/types';
 
 type Provider = 'tado' | 'hue' | 'octopus';
+type Target = Provider | 'all';
 interface State {
   running: boolean; revision: number;
-  providers: Record<Provider, {state: string; at?: number}>;
-  request?: {provider: Provider; accepted: boolean; reason?: string; retryAt?: number};
+  providers: Record<Provider, {state: string; at?: number; lastSuccess?: number | null}>;
+  request?: {provider: Target; accepted: boolean; reason?: string; retryAt?: number; decisions?: Partial<Record<Provider, {accepted: boolean; reason?: string}>>};
 }
-const providers: [Provider, string][] = [['tado', 'Tado'], ['hue', 'Hue'], ['octopus', 'Octopus']];
+const providers: [Target, string][] = [['tado', 'Tado'], ['hue', 'Hue'], ['octopus', 'Octopus'], ['all', 'all']];
 const labels: Record<string, string> = {
   running: 'Refreshing…', updated: 'Updated', failed: 'Could not refresh. You can try again.',
   unavailable: 'Check the provider connection.', busy: 'Another refresh is in progress.',
@@ -21,8 +23,13 @@ const labels: Record<string, string> = {
 export function RefreshMenu({source}: {source: Source}) {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<State | null>(null);
-  const [pending, setPending] = useState<Provider | null>(null);
-  const [message, setMessage] = useState<{provider?: Provider; text: string; transient?: boolean} | null>(null);
+  const [pending, setPending] = useState<Target | null>(null);
+  const [message, setMessage] = useState<{provider?: Target; text: string; transient?: boolean} | null>(null);
+  const [blocked, setBlocked] = useState<Partial<Record<Provider, string>>>({});
+  const [pullMessage, setPullMessage] = useState('');
+  const pullActive = useRef(false);
+  const skipped = useRef(false);
+  const inFlight = useRef(false);
   const [attempt, setAttempt] = useState(0);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -72,9 +79,11 @@ export function RefreshMenu({source}: {source: Source}) {
     return () => {controller.abort(); clearTimeout(timer);};
   }, [source, open, state?.running, pending, attempt]);
 
-  async function refresh(provider: Provider) {
-    if (source !== 'real' || pending || state?.running) return;
-    setPending(provider); setMessage(null);
+  async function refresh(provider: Target) {
+    if (source !== 'real' || inFlight.current || pending || state?.running) return;
+    inFlight.current = true;
+    if (provider === 'all') {pullActive.current = true; skipped.current = false; setPullMessage('Refreshing providers…');}
+    setPending(provider); setMessage(null); setBlocked({});
     request.current = new AbortController();
     try {
       const response = await fetch(`/api/refresh/${provider}?source=real`, {
@@ -85,19 +94,37 @@ export function RefreshMenu({source}: {source: Source}) {
       const next: State = await response.json();
       if (!active.current) return;
       accept(next);
+      if (provider === 'all') {
+        setBlocked(Object.fromEntries(Object.entries(next.request?.decisions ?? {}).filter(([, d]) => !d.accepted).map(([name, d]) => [name, labels[d.reason ?? 'failed'] ?? labels.failed])));
+        skipped.current = !next.request?.accepted || Object.values(next.request?.decisions ?? {}).some(d => !d.accepted);
+      }
       if (next.request && !next.request.accepted) {
-        const retry = next.request.retryAt ? ` Available at ${new Date(next.request.retryAt).toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'})}.` : '';
-        setMessage({provider, text: (labels[next.request.reason ?? 'failed'] ?? labels.failed) + retry});
+        const retry = next.request.retryAt ? ` Available at ${date(next.request.retryAt, {hour:'2-digit',minute:'2-digit'})}.` : '';
+        setMessage({provider, text: provider === 'all' && !next.request.reason ? 'No providers refreshed. See individual status.' : (labels[next.request.reason ?? 'failed'] ?? labels.failed) + retry});
       }
       if (!next.running && next.request?.accepted) window.dispatchEvent(new Event(DATA_UPDATED));
     } catch {
-      if (active.current) setMessage({provider, text: 'Could not confirm the request. Checking its status…', transient: true});
+      if (active.current) {skipped.current = true; setMessage({provider, text: 'Could not confirm the request. Checking its status…', transient: true});}
     } finally {
+      inFlight.current = false;
       if (active.current) {setPending(null); setAttempt(v => v + 1);}
     }
   }
+  useEffect(() => {
+    if (!pullActive.current || pending || state?.running) return;
+    pullActive.current = false;
+    const incomplete = skipped.current || !state || Object.values(state.providers).some(p =>
+      !['updated', 'pending_review'].includes(p.state));
+    setPullMessage(incomplete ? 'Refresh incomplete. Check the menu.' : 'Refresh complete');
+  }, [pending, state]);
+  useEffect(() => {
+    if (!pullMessage || pullActive.current) return;
+    const timer = setTimeout(() => setPullMessage(''), 5000);
+    return () => clearTimeout(timer);
+  }, [pullMessage]);
+  const distance = usePullRefresh(source === 'real' && !open && !pending && !state?.running, () => void refresh('all'));
   const disabled = source !== 'real' || !!pending || !!state?.running;
-  return <div className="refresh-menu" ref={root} onKeyDown={e => {
+  return <><div className="refresh-menu" ref={root} onKeyDown={e => {
     if (open && ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
       e.preventDefault();
       const enabled = items.current.filter((item): item is HTMLButtonElement => !!item && !item.disabled);
@@ -114,15 +141,20 @@ export function RefreshMenu({source}: {source: Source}) {
     }}>
       <span className="refresh-menu-title">Refresh data</span>
       {providers.map(([provider, label], i) => {
-        const status = state?.providers?.[provider]?.state;
-        const detail = message?.provider === provider ? message.text : pending === provider ? labels.running : labels[status ?? 'idle'];
+        const providerState = provider === 'all' ? null : state?.providers?.[provider];
+        const status = providerState?.state;
+        const last = providerState?.lastSuccess;
+        const detail = message?.provider === provider ? message.text : provider !== 'all' && blocked[provider] ? blocked[provider] : pending === provider || (pending === 'all' && status === 'running') ? labels.running : labels[status ?? 'idle'];
         return <button key={provider} role="menuitem" ref={el => {items.current[i] = el;}} disabled={disabled} onClick={() => void refresh(provider)}>
           <RefreshCw size={15} className={status === 'running' || pending === provider ? 'refresh-spinning' : ''}/>
-          <span>Refresh {label}{source === 'real' && detail && <small aria-live="polite">{detail}</small>}</span>
+          <span>Refresh {label}{source === 'real' && detail && <small aria-live="polite">{detail}</small>}{source === 'real' && provider !== 'all' && <small className="refresh-last">{last ? <>Last refreshed <time dateTime={new Date(last).toISOString()}>{date(last)}</time></> : state ? 'No successful refresh recorded' : 'Checking last refresh…'}</small>}</span>
         </button>;
       })}
       {source === 'demo' && <p>Select "My home" to refresh providers.</p>}
       {source === 'real' && message && !message.provider && <p role="status">{message.text}</p>}
     </div>}
-  </div>;
+  </div>{!open && (distance > 0 || pullMessage) && <div className="pull-refresh-status" role="status">
+    <RefreshCw size={16} className={pending || state?.running ? 'refresh-spinning' : ''}/>
+    <span>{distance > 0 ? distance >= 64 ? 'Release to refresh all' : 'Pull to refresh all' : pullMessage}</span>
+  </div>}</>;
 }

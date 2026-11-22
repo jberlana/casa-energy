@@ -71,3 +71,18 @@ All actions share a single job with automatic refresh. The manual process has a 
 of 190 seconds; failures and cooldowns are shown without exposing private provider errors.
 After updating an installation's code, reinstall the web service to copy the new modules as well;
 the existing collectors do not need to be reinstalled.
+
+## Last refresh and pull to refresh
+
+The menu shows each provider's last successful refresh, including scheduled collectors. Failed
+attempts and quota pauses do not overwrite that time. Missing evidence is shown explicitly.
+Tado uses the collector's successful completion, Hue the latest valid local observation, and
+Octopus the last completed document synchronization. These are refresh times, not invoice dates
+or the time a sensor value last changed.
+
+At the top of the page in My home, pull down on the header or room heading and release after the
+refresh hint changes. Chart touches, controls, horizontal movement, pinches and cancelled gestures
+are excluded. The menu also offers Refresh all for keyboard and desktop use. Demo never requests
+provider updates. One server request reserves all eligible providers under the shared lock, with
+independent quotas and results; a skipped or failed provider does not stop the others. The hint
+reports partial completion, and the menu gives the individual reasons. Graphs keep their viewport.

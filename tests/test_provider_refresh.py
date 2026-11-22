@@ -1,4 +1,5 @@
 """Manual refresh actions use synthetic stores and mocked providers only."""
+from contextlib import closing
 import hashlib
 import json
 from pathlib import Path
@@ -22,7 +23,7 @@ class ManualRefreshTests(unittest.TestCase):
         self.now = 1795348800.
         self.calls = []
         self.c = refresh.Coordinator(self.root/'web', self.root/'history', self.root/'environment',
-                                     clock=lambda: self.now, runner=self.run_job)
+                                     clock=lambda: self.now, runner=self.run_job, octopus=self.root/'octopus')
         self.c.history.mkdir()
         (self.c.history/'config.json').write_text('{}')
         self.db = tado.connect(self.c.history, tado.DEFAULTS)
@@ -67,7 +68,7 @@ class ManualRefreshTests(unittest.TestCase):
         state = refresh.read_json(self.c.root/'refresh.json')
         self.assertEqual(state['tadoCount'], 4)
         self.c.request_manual('hue'); self.finish()
-        restarted = refresh.Coordinator(self.c.root, self.c.history, self.c.environment, clock=lambda: self.now, runner=self.run_job)
+        restarted = refresh.Coordinator(self.c.root, self.c.history, self.c.environment, clock=lambda: self.now, runner=self.run_job, octopus=self.root/'octopus')
         self.assertEqual(restarted.request_manual('hue')['request']['reason'], 'cooldown')
 
     def test_cross_tab_and_automatic_concurrency_never_start_duplicate_work(self):
@@ -76,7 +77,7 @@ class ManualRefreshTests(unittest.TestCase):
         self.c.runner = slow
         self.c.request_manual('hue'); entered.wait(1)
         try:
-            other = refresh.Coordinator(self.c.root, self.c.history, self.c.environment, clock=lambda: self.now, runner=self.run_job)
+            other = refresh.Coordinator(self.c.root, self.c.history, self.c.environment, clock=lambda: self.now, runner=self.run_job, octopus=self.root/'octopus')
             self.assertEqual(other.request_manual('octopus')['request']['reason'], 'busy')
             self.assertTrue(other.request()['running'])
             self.assertEqual(self.calls, [])
@@ -92,6 +93,68 @@ class ManualRefreshTests(unittest.TestCase):
         state = self.c.status()
         self.assertNotIn('command', json.dumps(state))
         self.assertNotIn(str(self.root), json.dumps(state))
+
+    def test_general_refresh_reserves_each_provider_and_retains_independent_results(self):
+        self.c.runner = lambda command, **kw: (self.calls.append(command[-1]) or
+            SimpleNamespace(returncode={'tado': 1, 'hue': 0, 'octopus': 6}[command[-1]]))
+        result = self.c.request_manual('all')
+        self.finish()
+        self.assertTrue(result['request']['accepted'])
+        self.assertCountEqual(self.calls, ['tado', 'hue', 'octopus'])
+        state = self.c.status()['providers']
+        self.assertEqual(state['tado']['state'], 'failed')
+        self.assertIsNone(state['tado']['lastSuccess'])
+        self.assertEqual(state['hue']['lastSuccess'], int(self.now*1000))
+        self.assertEqual(state['octopus']['state'], 'pending_review')
+        again = self.c.request_manual('all')
+        self.assertFalse(again['request']['accepted'])
+        self.assertTrue(all(d['reason'] == 'cooldown' for d in again['request']['decisions'].values()))
+        self.assertEqual(len(self.calls), 3)
+
+    def test_general_refresh_keeps_one_lock_and_reports_all_running_providers(self):
+        release = threading.Event()
+        def run(*a, **kw):
+            release.wait(3)
+            return SimpleNamespace(returncode=0)
+        self.c.runner = run
+        try:
+            self.c.request_manual('all')
+            state = self.c.status()
+            self.assertTrue(state['running'])
+            self.assertTrue(all(p['state'] == 'running' for p in state['providers'].values()))
+            self.assertEqual(self.c.request_manual('hue')['request']['reason'], 'busy')
+            self.assertTrue(self.c.request()['running'])
+        finally:
+            release.set(); self.finish()
+
+    def test_general_refresh_skips_tado_quota_without_blocking_other_providers(self):
+        with patch.object(self.c, 'tado_due', return_value=False):
+            result = self.c.request_manual('all')
+            self.finish()
+        self.assertEqual(result['request']['decisions']['tado']['reason'], 'quota')
+        self.assertCountEqual([c[0][-1] for c in self.calls], ['hue', 'octopus'])
+        self.assertEqual(refresh.read_json(self.c.root/'refresh.json')['tadoCount'], 0)
+
+    def test_failed_retry_preserves_success_and_scheduled_collection_is_visible(self):
+        self.c.request_manual('hue'); self.finish()
+        successful = self.c.status()['providers']['hue']['lastSuccess']
+        self.now += 61
+        self.c.runner = lambda *a, **kw: SimpleNamespace(returncode=1)
+        self.c.request_manual('hue'); self.finish()
+        self.assertEqual(self.c.status()['providers']['hue']['lastSuccess'], successful)
+        stamp = refresh.datetime.fromtimestamp(self.now, refresh.timezone.utc).isoformat()
+        tado.state_set(self.db, 'last_success', stamp)
+        self.db.commit()
+        with closing(hue.connect(self.c.environment)) as db:
+            db.execute("INSERT INTO outdoor VALUES (?, 10, ?, 'Synthetic', 1)", (int(self.now*1000), int(self.now*1000)))
+            db.execute("INSERT INTO outdoor VALUES (?, NULL, NULL, 'Synthetic', 0)", (int((self.now+5)*1000),))
+            db.commit()
+        self.c.octopus = self.root/'octopus'
+        self.c.octopus.mkdir()
+        (self.c.octopus/'catalog.json').write_text(json.dumps({'summary': {'updated': int(self.now*1000)}}))
+        state = self.c.status()['providers']
+        for provider in ('tado', 'hue', 'octopus'):
+            self.assertEqual(state[provider]['lastSuccess'], int(self.now*1000))
 
     def test_unknown_provider_cannot_become_a_command(self):
         with self.assertRaises(ValueError): self.c.request_manual('../../anything')

@@ -40,10 +40,11 @@ def epoch(value):
 
 
 class Coordinator:
-    def __init__(self, root=None, history=None, environment=None, clock=time.time, runner=subprocess.run):
+    def __init__(self, root=None, history=None, environment=None, clock=time.time, runner=subprocess.run, octopus=None):
         self.root = Path(root or os.environ.get('TADO_WEB_ROOT',HOME/'TadoWeb'))
         self.history = Path(history or os.environ.get('TADO_DATA_ROOT',HOME/'TadoHistory'))
         self.environment = Path(environment or os.environ.get('TADO_ENV_ROOT',HOME/'TadoEnvironment'))
+        self.octopus = Path(octopus or os.environ.get('OCTOPUS_ROOT', Path.home()/'.config/octopus-experiment'))
         self.clock, self.runner = clock, runner
         self.thread = None
 
@@ -52,9 +53,26 @@ class Coordinator:
         running = bool(s.get('running') and self.clock()-s.get('started',0)<240)
         providers = {name: dict(s.get('providers', {}).get(name, {'state': 'idle'})) for name in ('tado', 'hue', 'octopus')}
         for name, value in providers.items():
-            if value.get('state') == 'running' and (not running or s.get('manual') != name):
+            if value.get('state') == 'running' and (not running or s.get('manual') not in (name, 'all')):
                 value['state'] = 'interrupted'
+        for name, value in providers.items():
+            value['lastSuccess'] = max(value.get('lastSuccess') or 0, self.last_success(name)) or None
         return {'running':running, 'revision':s.get('revision',0), 'providers':providers}
+
+    def last_success(self, provider):
+        # Read collector-owned evidence, including scheduled refreshes. Attempts are not successes.
+        try:
+            if provider == 'octopus':
+                return int(read_json(self.octopus/'catalog.json').get('summary', {}).get('updated') or 0)
+            path = self.history/'history.sqlite3' if provider == 'tado' else self.environment/'environment.sqlite3'
+            if not path.is_file(): return 0
+            with closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True, timeout=.2)) as db:
+                if provider == 'hue':
+                    return db.execute('SELECT max(timestamp) FROM outdoor WHERE valid=1').fetchone()[0] or 0
+                row = db.execute("SELECT value FROM state WHERE key='last_success'").fetchone()
+                return int(epoch(json.loads(row[0]))*1000) if row else 0
+        except (OSError, sqlite3.Error, ValueError, TypeError):
+            return 0
 
     def tado_due(self, now, force=False):
         path=self.history/'history.sqlite3'
@@ -133,7 +151,7 @@ class Coordinator:
             raise
 
     def request_manual(self, provider):
-        if provider not in ('tado', 'hue', 'octopus'):
+        if provider not in ('tado', 'hue', 'octopus', 'all'):
             raise ValueError('Unknown provider')
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         lock = (self.root/'refresh.lock').open('a')
@@ -150,32 +168,41 @@ class Coordinator:
             if state.get('day') != day:
                 state.update(day=day, tadoCount=0)
             state.setdefault('providers', {})
-            cooldown = {'tado': 30*MINUTE, 'hue': MINUTE, 'octopus': 15*MINUTE}[provider]
-            attempt_key = {'tado': 'tadoAttempt', 'hue': 'hueAttempt', 'octopus': 'octopusAttempt'}[provider]
-            last = state.get(attempt_key, 0)
-            if provider == 'hue':
-                last = max(last, state.get('environmentAttempt', 0))
-            reason = None
-            if now - last < cooldown:
-                reason = 'cooldown'
-            elif provider == 'tado' and (not (self.history/'config.json').exists() or not (self.history/'history.sqlite3').exists()):
-                reason = 'unavailable'
-            elif provider == 'tado' and (state.get('tadoCount', 0) >= 4 or not self.tado_due(now, force=True)):
-                reason = 'quota'
-            if reason:
-                return {**self.status(), 'request': {'provider': provider, 'accepted': False, 'reason': reason,
-                        'retryAt': int((last+cooldown)*1000) if reason == 'cooldown' else None}}
-            state[attempt_key] = now
-            if provider == 'tado':
-                state['tadoCount'] = state.get('tadoCount', 0)+1
-            state['providers'][provider] = {'state': 'running', 'at': int(now*1000)}
+            jobs, decisions = [], {}
+            selected = ('tado', 'hue', 'octopus') if provider == 'all' else (provider,)
+            for name in selected:
+                cooldown = {'tado': 30*MINUTE, 'hue': MINUTE, 'octopus': 15*MINUTE}[name]
+                attempt_key = {'tado': 'tadoAttempt', 'hue': 'hueAttempt', 'octopus': 'octopusAttempt'}[name]
+                last = state.get(attempt_key, 0)
+                if name == 'hue':
+                    last = max(last, state.get('environmentAttempt', 0))
+                reason = None
+                if now - last < cooldown:
+                    reason = 'cooldown'
+                elif name == 'tado' and (not (self.history/'config.json').exists() or not (self.history/'history.sqlite3').exists()):
+                    reason = 'unavailable'
+                elif name == 'tado' and (state.get('tadoCount', 0) >= 4 or not self.tado_due(now, force=True)):
+                    reason = 'quota'
+                decisions[name] = {'accepted': reason is None, 'reason': reason,
+                                   'retryAt': int((last+cooldown)*1000) if reason == 'cooldown' else None}
+                if reason:
+                    continue
+                state[attempt_key] = now
+                if name == 'tado':
+                    state['tadoCount'] = state.get('tadoCount', 0)+1
+                previous = state['providers'].get(name, {})
+                state['providers'][name] = {**previous, 'state': 'running', 'at': int(now*1000)}
+                jobs.append((name, [sys.executable, '-m', 'backend.provider_refresh', name], 190))
+            response = {'provider': provider, 'accepted': bool(jobs), 'decisions': decisions}
+            if provider != 'all': response.update(decisions[provider])
+            if not jobs:
+                return {**self.status(), 'request': response}
             state.update(running=True, started=now, manual=provider)
             write_json(self.root/'refresh.json', state)
-            command = [sys.executable, '-m', 'backend.provider_refresh', provider]
-            self.thread = threading.Thread(target=self._work, args=([(provider, command, 190)], state, lock), daemon=True)
+            self.thread = threading.Thread(target=self._work, args=(jobs, state, lock), daemon=True)
             self.thread.start()
             handed_off = True
-            return {**self.status(), 'request': {'provider': provider, 'accepted': True}}
+            return {**self.status(), 'request': response}
         finally:
             if not handed_off:
                 lock.close()
@@ -188,21 +215,26 @@ class Coordinator:
                 if state.get('manual'):
                     options = {'cwd': str(Path(__file__).resolve().parents[1]),
                                'env': {**os.environ, 'TADO_WEB_ROOT': str(self.root.resolve()),
-                                       'TADO_DATA_ROOT': str(self.history.resolve()), 'TADO_ENV_ROOT': str(self.environment.resolve())}}
+                                       'TADO_DATA_ROOT': str(self.history.resolve()), 'TADO_ENV_ROOT': str(self.environment.resolve()),
+                                       'OCTOPUS_ROOT': str(self.octopus.resolve())}}
                 result=self.runner(command,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,
                                    stderr=subprocess.DEVNULL,timeout=timeout,check=False,**options)
                 if state.get('manual'):
                     return name, {0: 'updated', 3: 'unavailable', 4: 'busy', 5: 'quota',
-                                  6: 'pending_review', 7: 'partial'}.get(result.returncode, 'failed')
-                return name, 'finished' if result.returncode==0 else 'failed'
+                                  6: 'pending_review', 7: 'partial'}.get(result.returncode, 'failed'), int(self.clock()*1000)
+                return name, 'finished' if result.returncode==0 else 'failed', int(self.clock()*1000)
             except (OSError,subprocess.TimeoutExpired):
-                return name,'failed'
+                return name, 'failed', int(self.clock()*1000)
         try:
-            with ThreadPoolExecutor(max_workers=2) as pool:
-                state['results']=dict(pool.map(run,jobs))
+            with ThreadPoolExecutor(max_workers=3) as pool:
+                outcomes = list(pool.map(run, jobs))
+                state['results'] = {name: result for name, result, _ in outcomes}
                 if state.get('manual'):
-                    provider = state['manual']
-                    state['providers'][provider] = {'state': state['results'].get(provider, 'failed'), 'at': int(self.clock()*1000)}
+                    for provider, result, at in outcomes:
+                        previous = state['providers'].get(provider, {})
+                        state['providers'][provider] = {**previous, 'state': result, 'at': at}
+                        if result in ('updated', 'pending_review', 'partial'):
+                            state['providers'][provider]['lastSuccess'] = at
         finally:
             state.update(running=False,revision=max(state.get('revision', 0)+1, int(self.clock()*1000)))
             try: write_json(self.root/'refresh.json',state)

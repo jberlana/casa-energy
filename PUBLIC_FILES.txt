@@ -58,6 +58,7 @@ web/src/features/heating/Sessions.tsx
 web/src/features/heating/Timeline.tsx
 web/src/features/heating/Windows.tsx
 web/src/features/heating/gestures.ts
+web/src/features/usePullRefresh.ts
 web/src/lib/refresh.ts
 web/src/lib/types.ts
 web/src/main.tsx
