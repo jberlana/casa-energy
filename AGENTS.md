@@ -8,6 +8,7 @@ is the development source; private installations and their data are separate run
 
 ## Scope and privacy
 
+- Work directly on `main` by default. Create a branch or pull request only when the user requests it.
 - Keep changes focused on the requested outcome. Preserve unrelated local edits.
 - Use synthetic data and temporary directories for development and tests. Never import real
   readings, invoices, screenshots, logs, credentials, personal paths, device IDs or coordinates.

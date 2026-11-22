@@ -17,14 +17,15 @@ when using another backend port. Do not commit a personal hostname.
 ## Change workflow
 
 1. Read the directory README and `docs/architecture.md`; choose the module that owns the behavior.
-2. Create a focused branch, such as `fix/session-boundaries` or `feat/new-provider`.
+2. Work directly on `main` by default. Use a separate branch or pull request only when requested.
 3. Implement using synthetic fixtures. Add tests for behavior that could regress, rather than tests
    that duplicate implementation details. Update docs for commands, contracts and configuration.
 4. Run `make check`. For UI/gesture changes, verify mobile and desktop behavior in a browser.
 5. Review new files individually and update `PUBLIC_FILES.txt`. Review `git diff`, stage only the
    intended paths, then run `make check-publication` and `git diff --cached --check`.
-6. Commit and open a pull request with problem, resulting behavior, validation and relevant limits.
-   Publication to the public repository must stay within the authorized task scope.
+6. Commit the focused change on `main` and report the resulting behavior, validation and relevant
+   limits. Push within the authorized task scope. If a pull request was explicitly requested, use
+   that workflow instead.
 
 `make check-publication` reads the Git index. Stage both the manifest and changed files before
 running it; passing the check does not validate unstaged edits. It is an additional guard, not proof
