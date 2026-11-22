@@ -12,10 +12,14 @@ backend/octopus_api.py
 backend/refresh_coordinator.py
 backend/tado_history.py
 backend/web_server.py
+backend/window_calibration.py
+backend/window_detection.py
+backend/window_store.py
 docs/README.md
 docs/architecture.md
 docs/privacy.md
 docs/setup.md
+docs/ventilation.md
 examples/README.md
 examples/collector-config.example.json
 requirements-web.lock
@@ -37,6 +41,7 @@ tests/test_octopus_api.py
 tests/test_refresh.py
 tests/test_sessions.py
 tests/test_web.py
+tests/test_windows.py
 web/README.md
 web/index.html
 web/package-lock.json
@@ -45,6 +50,7 @@ web/public/favicon.svg
 web/src/features/environment/Weather.tsx
 web/src/features/heating/Sessions.tsx
 web/src/features/heating/Timeline.tsx
+web/src/features/heating/Windows.tsx
 web/src/features/heating/gestures.ts
 web/src/lib/refresh.ts
 web/src/lib/types.ts

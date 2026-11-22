@@ -16,3 +16,6 @@ from a private database, even after deleting obvious account fields.
 
 Unit tests do not establish browser gesture correctness or real-provider behavior. Record those
 checks separately when required by the change. Test names should describe the behavior being protected.
+
+`test_windows.py` covers ventilation evidence, durable/correctable feedback, experimental holdouts,
+source isolation, read-only history, and bounded calibration across restarts and stale observations.

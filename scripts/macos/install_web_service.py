@@ -37,7 +37,8 @@ def main():
         raise SystemExit("Previous web service is still stopping; retry installation shortly")
     package = root / "backend"
     package.mkdir(exist_ok=True)
-    for name in ("__init__.py", "web_server.py", "refresh_coordinator.py", "environment_history.py", "heating_sessions.py"):
+    for name in ("__init__.py", "web_server.py", "refresh_coordinator.py", "environment_history.py", "heating_sessions.py",
+                 "window_detection.py", "window_store.py"):
         shutil.copy2(PROJECT / "backend" / name, package / name)
     verified = PROJECT / "output/octopus/verified-invoices.json"
     if verified.exists():

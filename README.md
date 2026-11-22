@@ -14,6 +14,7 @@ credenciales, identificadores de instalaciones ni direcciones privadas. La inter
 - Facturas verificadas importadas localmente, con desglose entre consumo y cargos fijos.
 - Actualización silenciosa de datos desfasados mientras la web está visible, con límites y bloqueo compartido.
 - Acceso privado opcional por Tailscale; el servidor escucha en loopback.
+- Posibles ventilaciones en la gráfica, con confirmaciones discretas y [calibración guiada](docs/ventilation.md).
 
 Demanda no confirma llama ni mide consumo de gas. Los costes de la demo son ejemplos hipotéticos;
 no son estimaciones calibradas para una vivienda. Los huecos y periodos incompletos se conservan.
