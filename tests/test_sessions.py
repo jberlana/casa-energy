@@ -3,8 +3,8 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-from heating_sessions import analyse, MINUTE, DAY
-import web_server as web
+from backend.heating_sessions import analyse, MINUTE, DAY
+from backend import web_server as web
 
 
 def event(a,b,value,series='callForHeat'):

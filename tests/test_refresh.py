@@ -7,9 +7,9 @@ import unittest
 from unittest.mock import patch
 from starlette.requests import Request
 from fastapi import HTTPException
-import tado_history as tado
-import refresh_coordinator as refresh
-import web_server as web
+from backend import tado_history as tado
+from backend import refresh_coordinator as refresh
+from backend import web_server as web
 
 
 class RefreshTests(unittest.TestCase):

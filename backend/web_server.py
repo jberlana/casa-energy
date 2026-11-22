@@ -10,9 +10,9 @@ import math
 import os
 from pathlib import Path
 import sqlite3
-from environment_history import read_environment
-from heating_sessions import analyse
-from refresh_coordinator import Coordinator
+from .environment_history import read_environment
+from .heating_sessions import analyse
+from .refresh_coordinator import Coordinator
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -22,8 +22,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 ROOT = Path(os.environ.get("TADO_DATA_ROOT", Path.home() / "Library/Application Support/TadoHistory"))
-DIST = Path(os.environ.get("TADO_WEB_DIST", Path(__file__).parent / "web/dist"))
-INVOICES = Path(os.environ.get("CASA_INVOICES", Path(__file__).parent / "output/octopus/verified-invoices.json"))
+DIST = Path(os.environ.get("TADO_WEB_DIST", Path(__file__).resolve().parents[1] / "web/dist"))
+INVOICES = Path(os.environ.get("CASA_INVOICES", Path(__file__).resolve().parents[1] / "output/octopus/verified-invoices.json"))
 DAY = 86_400_000
 MINUTE = 60_000
 DEMO_END = int(datetime.now(timezone.utc).timestamp() // 60) * MINUTE
