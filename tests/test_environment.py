@@ -3,6 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+from fastapi import HTTPException
 
 from backend import environment_history as env
 from backend import web_server as web
@@ -79,11 +80,12 @@ class EnvironmentTests(unittest.TestCase):
             env.collect_weather(self.db, self.base+5*60_000)
             request.assert_called_once()
 
-    def test_demo_never_contains_real_sensor_or_meteorological_data(self):
-        with patch.object(web, "read_environment", side_effect=AssertionError("real data")):
-            result = web.environment(self.base, self.base+env.DAY, "demo")
-        self.assertEqual(result["outdoor"], [])
-        self.assertEqual(result["weather"], [])
+    def test_retired_demo_does_not_read_the_environment(self):
+        with patch.object(web, "read_environment") as read:
+            with self.assertRaises(HTTPException) as error:
+                web.environment(self.base, self.base + env.DAY, "demo")
+            self.assertEqual(error.exception.status_code, 422)
+            read.assert_not_called()
 
 
 if __name__ == "__main__":

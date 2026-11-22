@@ -8,9 +8,6 @@ logs, sessions, passwords, private certificates, device identifiers, private rem
 domains, home coordinates or documents describing a real installation.
 Runtime paths and authorization files are resolved locally and are not versioned.
 
-The demo uses rooms `Demo A` through `Demo D`, with IDs 101–104 independent of any
-installation. Readings are calculated from formulas, not extracted from private databases.
-
 `PUBLIC_FILES.txt` is an explicit list of reviewed files. The publication check rejects
 tracked files outside that list and common patterns for credentials or private locations.
 It does not replace human review: a real reading or an identifier in an unfamiliar format can

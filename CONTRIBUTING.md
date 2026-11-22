@@ -14,13 +14,13 @@ Use Python 3.11+ and Node.js 22+. Start at the repository root:
 
 ```sh
 make setup
-make demo
+make dev
 ```
 
-The demo uses `.local/` for runtime state and starts without private configuration. It listens at
-`http://127.0.0.1:8765`; set `TADO_WEB_PORT` to use another port. For frontend hot reload, run
-`make dev-web` in a second terminal. Vite proxies API calls to port 8765; update its local proxy
-when using another backend port. Do not commit a personal hostname.
+The development server uses an isolated, empty history under `.local/` and listens at
+`http://127.0.0.1:8767`; set `TADO_WEB_PORT` to use another port. For frontend hot reload, run
+`make dev-web` in a second terminal. Vite proxies API calls to port 8767; set
+`TADO_WEB_PORT` for both processes when using a different port. Do not commit a personal hostname.
 
 ## Change workflow
 

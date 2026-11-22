@@ -31,12 +31,12 @@ observed. The read endpoint does not fetch provider data.
 
 ## Private persistence and API
 
-- `GET /api/window-events?source=real|demo&room=…&start=…&end=…` returns events, onset uncertainty,
+- `GET /api/window-events?room=…&start=…&end=…` returns events, onset uncertainty,
   evidence, labels, detector version, sensitivity and whether to ask for feedback. Times are UTC
   milliseconds. Day-aligned calculation margins preserve identity during pan/zoom.
 - `POST /api/window-feedback` takes `source`, `room`, `eventId`, `start`, `end`, `label` (`yes`, `no`,
   `unknown`). It requires matching Origin/Host and `X-Casa-Feedback: 1`. The server revalidates the
-  event rather than trusting client evidence. Demo and real labels are isolated.
+  event rather than trusting client evidence. Feedback for the retired data source is rejected.
 - `window-insights.sqlite3` under `TADO_WEB_ROOT` holds labels, sessions and minimal observations.
   It is created only on explicit writes, mode 0600, with a 32 MiB SQLite page cap. Exhaustion stops
   writes; it never deletes confirmations. Events are calculated on demand and do not accumulate.
@@ -106,6 +106,6 @@ scientific uncertainty. No burner runtime, gas loss or money saved is inferred f
 
 `tests/test_windows.py` uses synthetic data and mocked API calls. Cover gaps, disconnections, spikes,
 ordinary cooling, changed demand, annotation persistence/privacy, cross-origin rejection, independent
-demo labels, quota accounting, cadence, stale observations and expiry across restarts. Browser checks
+rejection of the retired source, quota accounting, cadence, stale observations and expiry across restarts. Browser checks
 must additionally verify marker focus, mobile details, prompt cessation, and unchanged pan/zoom.
 No unit or browser test establishes live Tado freshness or household detection accuracy.

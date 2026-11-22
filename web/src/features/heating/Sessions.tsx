@@ -1,26 +1,25 @@
 import { useDataRevision } from "../../lib/refresh";
 import { useEffect, useState } from "react";
 import { Flame, ReceiptText, ChevronDown, Maximize2 } from "lucide-react";
-import { DAY, date, fmt, get, type Range, type Source } from "../../lib/types";
+import { DAY, HOUR, date, fmt, get, type Range } from "../../lib/types";
 
-type Estimate = { low: number; high: number } | null;
+const demandLabels = { LOW: "Low", MEDIUM: "Medium", HIGH: "High", HEATING: "Level unavailable" } as const;
+const roomList = new Intl.ListFormat("en");
 
 export interface Session {
   id: string; start: number; end: number; durationMs: number; visibleMs: number;
   partialStart: boolean; partialEnd: boolean;
   rooms: { id: number; name: string; demandMs: number }[];
+  demandSegments: { roomId: number; start: number; end: number; level: keyof typeof demandLabels }[];
   response: { first: [number, number] | null; last: [number, number] | null; delta: number | null; complete: boolean };
-  energyKwh: Estimate;
-  cost: Estimate;
 }
 export interface Sessions {
-  source: Source; room: number; start: number; end: number;
+  room: number; start: number; end: number;
   sessions: Session[]; known: [number, number][];
-  days: { start: number; end: number; demandMs: number; knownMs: number; energyKwh: Estimate; cost: Estimate }[];
-  costModel: 'illustration' | 'uncalibrated';
+  days: { start: number; end: number; demandMs: number; knownMs: number }[];
 }
 const cache = new Map<string, { data: Sessions; at: number; bytes: number }>();
-export function useSessions(source: Source, room: number, range: Range, updated: number | null) {
+export function useSessions(room: number, range: Range, updated: number | null) {
   const revision = useDataRevision();
   const [data, setData] = useState<Sessions | null>(null);
   useEffect(() => { cache.clear(); }, [updated, revision]);
@@ -30,7 +29,7 @@ export function useSessions(source: Source, room: number, range: Range, updated:
     const controller = new AbortController();
     setFailed(false);
     const timer = setTimeout(async () => {
-      const url = `/api/sessions?source=${source}&room=${room}&start=${Math.floor(range.min)}&end=${Math.ceil(range.max)}`;
+      const url = `/api/sessions?room=${room}&start=${Math.floor(range.min)}&end=${Math.ceil(range.max)}`;
       try {
         const cached = cache.get(url);
         const next = cached && Date.now()-cached.at < 55_000 ? cached.data : await get<Sessions>(url, controller.signal);
@@ -41,52 +40,97 @@ export function useSessions(source: Source, room: number, range: Range, updated:
       } catch { if (!controller.signal.aborted) setFailed(true); }
     }, 220);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [source, room, range.min, range.max, updated, retry, revision]);
-  return { data: data?.room === room && data.source === source ? data : null, failed, retry: () => setRetry(v => v+1) };
+  }, [room, range.min, range.max, updated, retry, revision]);
+  return { data: data?.room === room ? data : null, failed, retry: () => setRetry(v => v+1) };
 }
 export function elapsed(ms: number) {
+  if (ms > 0 && ms < 60_000) return "<1 min";
   const mins = Math.round(ms/60_000);
   return mins < 60 ? `${mins} min` : `${Math.floor(mins/60)} h${mins%60 ? ` ${mins%60} min` : ''}`;
 }
 const clock = (t: number) => date(t, { hour: '2-digit', minute: '2-digit' });
 export const euros = (n: number) => `${fmt(n, 2)} €`;
 
-export function SessionDetail({ data, range, selectedId, expanded, onExpandedChange, onSelect, onZoom, roomName, failed, retry }: {
+const dayKey = (t: number) => date(t, { day: "numeric", month: "numeric", year: "numeric" });
+const shortDay = (t: number) => date(t, { day: "numeric", month: "short" });
+
+function SessionRow({ session, open, onToggle, onZoom, roomName }: {
+  session: Session; open: boolean; onToggle: () => void;
+  onZoom: (start: number, end: number) => void; roomName: string;
+}) {
+  const roomNames = new Map(session.rooms.map(room => [room.id, room.name]));
+  const initial = session.partialStart ? [] : session.demandSegments.filter(segment => segment.start === session.start);
+  const commonLevel = initial.every(segment => segment.level === initial[0]?.level) ? initial[0]?.level : undefined;
+  const firstRooms = roomList.format(initial.map(({ roomId, level }) => {
+    const name = roomNames.get(roomId) ?? "Room";
+    return commonLevel ? name : `${name} (${demandLabels[level].toLowerCase()})`;
+  }));
+  const initialLevel = commonLevel === "HEATING" ? "Demand level unavailable" : commonLevel && `${demandLabels[commonLevel]} at start`;
+  const end = dayKey(session.start) === dayKey(session.end) ? clock(session.end) : `${shortDay(session.end)} ${clock(session.end)}`;
+  const detailsId = `session-changes-${session.id}`;
+  const response = session.response.complete ? session.response.delta : null;
+
+  return <div className="session-row">
+    <button className="session-toggle" type="button" aria-expanded={open} aria-controls={open ? detailsId : undefined} onClick={onToggle}>
+      <span className="session-time">{clock(session.start)}–{end}</span>
+      <strong className="session-duration">{elapsed(session.durationMs)}</strong>
+      <ChevronDown size={16} aria-hidden="true" />
+      <span className="session-origin">
+        <span>{initial.length ? `${firstRooms} called for heat first` : "Start unconfirmed"}</span>
+        {initialLevel && <span className="session-initial-level">{initialLevel}</span>}
+        {session.partialEnd && <span>End unconfirmed</span>}
+      </span>
+    </button>
+    {open && <div className="session-changes" id={detailsId}>
+      <ol className="session-events" aria-label="Demand changes">
+        {session.demandSegments.map(segment => <li key={`${segment.roomId}-${segment.start}`}>
+          <time dateTime={new Date(segment.start).toISOString()}>{clock(segment.start)}</time>
+          <span>{roomNames.get(segment.roomId)}</span>
+          <span className="session-event-level">{demandLabels[segment.level]} <span>· {elapsed(segment.end - segment.start)}</span></span>
+        </li>)}
+        <li>
+          <time dateTime={new Date(session.end).toISOString()}>{clock(session.end)}</time>
+          <span className="session-end">{session.partialEnd ? "End unconfirmed" : "Demand ended"}</span>
+        </li>
+      </ol>
+      <div className="session-actions">
+        {response !== null && <p>Response in {roomName} · <strong>{response > 0 ? "+" : ""}{fmt(response, 2)} °C</strong></p>}
+        <button className="text-button" onClick={() => onZoom(session.start - HOUR, session.end + HOUR)}><Maximize2 size={14} /> Zoom to session</button>
+      </div>
+    </div>}
+  </div>;
+}
+
+export function SessionDetail({ data, range, selectedId, expanded, onToggle, onZoom, roomName, failed, retry }: {
   data: Sessions | null; range: Range; selectedId: string | null;
-  expanded: boolean; onExpandedChange: (expanded: boolean) => void;
-  onSelect: (id: string) => void; onZoom: (a: number, b: number) => void;
+  expanded: boolean;
+  onToggle: (id: string) => void; onZoom: (a: number, b: number) => void;
   roomName: string; failed: boolean; retry: () => void;
 }) {
   const current = data && data.start <= Math.floor(range.min) && data.end >= Math.ceil(range.max);
   const visible = data?.sessions.filter(s => s.end > range.min && s.start < range.max) ?? [];
-  const selected = visible.find(s => s.id === selectedId) ?? visible[visible.length-1];
-  const overview = range.max-range.min > 3*DAY;
+  const latest = visible.at(-1);
+  const overview = range.max - range.min > 3 * DAY;
+  const groups = new Map<string, Session[]>();
+  if (current && !overview) {
+    for (const session of [...visible].reverse()) {
+      const key = dayKey(session.start);
+      const group = groups.get(key);
+      if (group) group.push(session);
+      else groups.set(key, [session]);
+    }
+  }
   return <section className="session-section" aria-label="Demand sessions">
-    <div className="section-title"><h2><Flame size={16} /> Heating sessions</h2><span>{failed ? 'Unavailable' : !current ? 'Refreshing…' : `${visible.length} in this interval`}</span></div>
-    {failed ? <p role="alert">Could not read sessions. <button className="text-button" onClick={retry}>Retry</button></p> : !current ?
-      <p className="session-empty">Calculating sessions for this interval…</p> : !selected ?
-      <p className="session-empty">{data.known.length ? 'No demand recorded in this interval.' : 'Not enough state data to identify sessions.'}</p> : overview ?
-      <div className="session-overview"><strong>{elapsed(data.days.reduce((n,d)=>n+d.demandMs,0))}</strong><span>of combined demand · overlaps count once</span><button onClick={() => onZoom(selected.start-3_600_000, selected.end+3_600_000)}>Explore the latest session</button></div> : <>
-      <div className="session-picker" role="group" aria-label="Choose a session">
-        {visible.map(s => <button key={s.id} aria-pressed={s.id === selected.id} onClick={() => onSelect(s.id)}>
-          <span>{date(s.start, {day:'numeric',month:'short'})}</span>{clock(s.start)} – {clock(s.end)}
-        </button>)}
-      </div>
-      <details className="session-inspector" open={expanded} onToggle={e => onExpandedChange(e.currentTarget.open)}>
-        <summary className="session-summary"><span><strong>{elapsed(selected.durationMs)}</strong> of combined demand</span><span>Details <ChevronDown size={14}/></span></summary>
-        <div className="session-facts">
-          <div><span>Combined demand</span><strong>{elapsed(selected.durationMs)}</strong><small>{selected.partialStart || selected.partialEnd ? 'Incomplete interval · boundaries unconfirmed' : 'Start and end observed'}</small></div>
-          <div><span>Response in {roomName}</span><strong>{selected.response.delta == null ? '—' : `${selected.response.delta > 0 ? '+' : ''}${fmt(selected.response.delta,2)} °C`}</strong><small>{selected.response.first && selected.response.last ? `${fmt(selected.response.first[1])}° (${clock(selected.response.first[0])}) → ${fmt(selected.response.last[1])}° (${clock(selected.response.last[0])})` : 'No readings during this session'}</small>{!selected.response.complete && <small>Insufficient readings or gaps</small>}{!selected.rooms.some(r=>r.id===data.room) && <small>No heat requested during this session</small>}</div>
-          <div className="session-cost"><span>{data.source === 'demo' ? 'Simulated cost' : 'Session cost'}</span><strong>{selected.cost ? `${fmt(selected.cost.low,2)}–${fmt(selected.cost.high,2)} €` : '—'}</strong><small>{selected.cost ? 'Illustrative variable consumption' : 'No matching invoice for calibration'}</small></div>
-        </div>
-        <details className="room-demands"><summary>Rooms that requested heat <ChevronDown size={15} /></summary>
-          <ul>{selected.rooms.map(r=><li key={r.id}><span>{r.name}</span><strong>{elapsed(r.demandMs)}</strong></li>)}</ul>
-          <p>Room durations overlap. Demand does not confirm burner operation or consumption.</p>
-        </details>
-        <button className="text-button" onClick={()=>onZoom(selected.start-3_600_000,selected.end+3_600_000)}><Maximize2 size={14}/> Zoom to session</button>
-      </details>
-    </>}
-    {data?.source === 'demo' && <details className="estimate-method"><summary>How cost is simulated</summary><p>Illustrative example: 8–12 kW of gas input during demand, at €0.08/kWh. It does not use your tariff or a calibrated boiler model. Fixed charges and taxes are excluded. The range represents these assumptions, not statistical confidence.</p></details>}
+    <div className="section-title"><h2><Flame size={16} /> Heating sessions</h2>{current && visible.length > 1 && <span>{visible.length} en el intervalo</span>}</div>
+    {failed ? <p role="alert">Could not load sessions. <button className="text-button" onClick={retry}>Retry</button></p> : !current ?
+      <p className="session-empty">Loading sessions…</p> : !latest ?
+      <p className="session-empty">{data.known.length ? 'No demand recorded in this interval.' : 'Insufficient coverage to identify sessions.'}</p> : overview ?
+      <div className="session-overview"><strong>{elapsed(data.days.reduce((n,d)=>n+d.demandMs,0))}</strong><span>of combined demand</span><button onClick={() => onZoom(latest.start-HOUR, latest.end+HOUR)}>Explore the latest session</button></div> :
+      Array.from(groups, ([day, sessions]) => <div className="session-day" key={day}>
+        <h3>{shortDay(sessions[0].start)}</h3>
+        {sessions.map(session => <SessionRow key={session.id} session={session} open={expanded && selectedId === session.id}
+          onToggle={() => onToggle(session.id)} onZoom={onZoom} roomName={roomName} />)}
+      </div>)}
   </section>;
 }
 

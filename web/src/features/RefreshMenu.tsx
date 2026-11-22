@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Ellipsis, RefreshCw } from 'lucide-react';
 import { usePullRefresh } from './usePullRefresh';
 import { DATA_UPDATED } from '../lib/refresh';
-import { date, type Source } from '../lib/types';
+import { date } from '../lib/types';
 
 type Provider = 'tado' | 'hue' | 'octopus';
 type Target = Provider | 'all';
@@ -20,7 +20,7 @@ const labels: Record<string, string> = {
   partial: 'Documents downloaded · more remain for the next refresh',
 };
 
-export function RefreshMenu({source}: {source: Source}) {
+export function RefreshMenu() {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<State | null>(null);
   const [pending, setPending] = useState<Target | null>(null);
@@ -59,7 +59,7 @@ export function RefreshMenu({source}: {source: Source}) {
     setState(next);
   }
   useEffect(() => {
-    if (source !== 'real' || (!open && !state?.running && !pending)) return;
+    if (!open && !state?.running && !pending) return;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
@@ -77,16 +77,16 @@ export function RefreshMenu({source}: {source: Source}) {
     };
     void poll();
     return () => {controller.abort(); clearTimeout(timer);};
-  }, [source, open, state?.running, pending, attempt]);
+  }, [open, state?.running, pending, attempt]);
 
   async function refresh(provider: Target) {
-    if (source !== 'real' || inFlight.current || pending || state?.running) return;
+    if (inFlight.current || pending || state?.running) return;
     inFlight.current = true;
     if (provider === 'all') {pullActive.current = true; skipped.current = false; setPullMessage('Refreshing providers…');}
     setPending(provider); setMessage(null); setBlocked({});
     request.current = new AbortController();
     try {
-      const response = await fetch(`/api/refresh/${provider}?source=real`, {
+      const response = await fetch(`/api/refresh/${provider}`, {
         method: 'POST', headers: {'X-Casa-Refresh': '1'},
         signal: AbortSignal.any([request.current.signal, AbortSignal.timeout(10_000)]),
       });
@@ -122,8 +122,8 @@ export function RefreshMenu({source}: {source: Source}) {
     const timer = setTimeout(() => setPullMessage(''), 5000);
     return () => clearTimeout(timer);
   }, [pullMessage]);
-  const distance = usePullRefresh(source === 'real' && !open && !pending && !state?.running, () => void refresh('all'));
-  const disabled = source !== 'real' || !!pending || !!state?.running;
+  const distance = usePullRefresh(!open && !pending && !state?.running, () => void refresh('all'));
+  const disabled = !!pending || !!state?.running;
   return <><div className="refresh-menu" ref={root} onKeyDown={e => {
     if (open && ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
       e.preventDefault();
@@ -147,11 +147,10 @@ export function RefreshMenu({source}: {source: Source}) {
         const detail = message?.provider === provider ? message.text : provider !== 'all' && blocked[provider] ? blocked[provider] : pending === provider || (pending === 'all' && status === 'running') ? labels.running : labels[status ?? 'idle'];
         return <button key={provider} role="menuitem" ref={el => {items.current[i] = el;}} disabled={disabled} onClick={() => void refresh(provider)}>
           <RefreshCw size={15} className={status === 'running' || pending === provider ? 'refresh-spinning' : ''}/>
-          <span>Refresh {label}{source === 'real' && detail && <small aria-live="polite">{detail}</small>}{source === 'real' && provider !== 'all' && <small className="refresh-last">{last ? <>Last refreshed <time dateTime={new Date(last).toISOString()}>{date(last)}</time></> : state ? 'No successful refresh recorded' : 'Checking last refresh…'}</small>}</span>
+          <span>Refresh {label}{detail && <small aria-live="polite">{detail}</small>}{provider !== 'all' && <small className="refresh-last">{last ? <>Last refreshed <time dateTime={new Date(last).toISOString()}>{date(last)}</time></> : state ? 'No successful refresh recorded' : 'Checking last refresh…'}</small>}</span>
         </button>;
       })}
-      {source === 'demo' && <p>Select "My home" to refresh providers.</p>}
-      {source === 'real' && message && !message.provider && <p role="status">{message.text}</p>}
+      {message && !message.provider && <p role="status">{message.text}</p>}
     </div>}
   </div>{!open && (distance > 0 || pullMessage) && <div className="pull-refresh-status" role="status">
     <RefreshCw size={16} className={pending || state?.running ? 'refresh-spinning' : ''}/>

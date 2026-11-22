@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import type { Source } from './types';
 
 export const DATA_UPDATED = 'casa-data-updated';
 export function useDataRevision() {
@@ -13,9 +12,8 @@ export function useDataRevision() {
 }
 
 // The server owns staleness, quota and concurrency decisions, shared by every browser.
-export function useAutoRefresh(source: Source) {
+export function useAutoRefresh() {
   useEffect(() => {
-    if (source !== 'real') return;
     let stopped = false, running = false, busy = false, revision: number | null = null;
     let timer: ReturnType<typeof setTimeout>;
     const controller = new AbortController();
@@ -56,5 +54,5 @@ export function useAutoRefresh(source: Source) {
       document.removeEventListener('visibilitychange', visible);
       window.removeEventListener('pageshow', visible);
     };
-  }, [source]);
+  }, []);
 }

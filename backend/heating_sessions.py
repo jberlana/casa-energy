@@ -7,19 +7,9 @@ MINUTE = 60_000
 DAY = 86_400_000
 HEAT = {'LOW', 'MEDIUM', 'HIGH', 'HEATING'}
 TZ = ZoneInfo('Europe/Madrid')
-DEMO_PRICE_PER_KWH = .08
 
 
-def simulated_energy(duration_ms, source):
-    if source != 'demo':
-        return None, None
-    hours = duration_ms / 3_600_000
-    energy = {'low': hours * 8, 'high': hours * 12}
-    cost = {bound: kwh * DEMO_PRICE_PER_KWH for bound, kwh in energy.items()}
-    return energy, cost
-
-
-def analyse(rooms, selected, start, end, context_start, context_end, source):
+def analyse(rooms, selected, start, end, context_start, context_end):
     # Sweep normalized state intervals. Unknown/disconnected rooms cannot prove a house-wide stop.
     changes = {}
     def add(t, value):
@@ -46,18 +36,28 @@ def analyse(rooms, selected, start, end, context_start, context_end, source):
                 state[key] = value
         demands = {key[0]: value for key, value in state.items() if key[1] == 'callForHeat'}
         offline = {key[0] for key, value in state.items() if key[1] == 'connected' and value is False}
-        active = sorted(rid for rid, value in demands.items() if value in HEAT and rid not in offline)
+        active = {rid: value for rid, value in sorted(demands.items())
+                  if value in HEAT and rid not in offline}
         cold = bool(rooms) and all(demands.get(rid) == 'NONE' and rid not in offline for rid in rooms)
         spans.append({'start': t, 'end': following, 'active': active, 'cold': cold})
     sessions, current = [], None
+    latest_segment = {}
     for i, span in enumerate(spans):
         if span['active']:
             if current is None:
-                current = {'start': span['start'], 'end': span['end'], 'roomMs': {},
+                current = {'start': span['start'], 'end': span['end'], 'roomMs': {}, 'demandSegments': [],
                            'partialStart': not (i and spans[i-1]['cold'])}
+                latest_segment = {}
             current['end'] = span['end']
-            for rid in span['active']:
+            for rid, level in span['active'].items():
                 current['roomMs'][rid] = current['roomMs'].get(rid, 0) + span['end']-span['start']
+                previous = latest_segment.get(rid)
+                if previous and previous['end'] == span['start'] and previous['level'] == level:
+                    previous['end'] = span['end']
+                else:
+                    segment = {'roomId': rid, 'start': span['start'], 'end': span['end'], 'level': level}
+                    latest_segment[rid] = segment
+                    current['demandSegments'].append(segment)
         elif current:
             current['partialEnd'] = not span['cold']
             sessions.append(current)
@@ -68,7 +68,7 @@ def analyse(rooms, selected, start, end, context_start, context_end, source):
 
     samples = rooms[selected]['samples']
     times = [s[0] for s in samples]
-    max_gap = (2 if source == 'demo' else 25) * MINUTE
+    max_gap = 25 * MINUTE
     visible = []
     for s in sessions:
         if s['end'] <= start or s['start'] >= end:
@@ -86,13 +86,11 @@ def analyse(rooms, selected, start, end, context_start, context_end, source):
                     'delta': round(valid[-1][1]-valid[0][1], 2) if complete else None,
                     'complete': complete}
         duration = s['end']-s['start']
-        # Illustrative gas input power and unit price; never fitted to real household invoices.
-        energy, cost = simulated_energy(duration, source)
         visible.append({**s, 'id': str(s['start']), 'durationMs': duration,
                         'visibleMs': min(end,s['end'])-max(start,s['start']),
                         'rooms': [{'id': rid, 'name': rooms[rid]['name'], 'demandMs': value}
                                   for rid,value in s['roomMs'].items()],
-                        'response': response, 'energyKwh': energy, 'cost': cost})
+                        'response': response, 'energyKwh': None, 'cost': None})
         del visible[-1]['roomMs']
 
     # Calendar days, not fixed 24h bins (Europe/Madrid DST days can be 23/25 hours).
@@ -103,9 +101,8 @@ def analyse(rooms, selected, start, end, context_start, context_end, source):
         a, b = max(start, int(day.timestamp()*1000)), min(end, int(next_day.timestamp()*1000))
         demand = sum(max(0, min(b,s['end'])-max(a,s['start'])) for s in visible)
         known = sum(max(0, min(b,s['end'])-max(a,s['start'])) for s in spans if s['active'] or s['cold'])
-        energy, cost = simulated_energy(demand, source)
         days.append({'start': a, 'end': b, 'demandMs': demand, 'knownMs': known,
-                     'energyKwh': energy, 'cost': cost})
+                     'energyKwh': None, 'cost': None})
         day = next_day
     known = []
     for s in spans:
@@ -115,6 +112,6 @@ def analyse(rooms, selected, start, end, context_start, context_end, source):
                 known[-1][1] = b
             else:
                 known.append([a,b])
-    return {'source': source, 'room': selected, 'start': start, 'end': end,
+    return {'source': 'real', 'room': selected, 'start': start, 'end': end,
             'sessions': visible, 'days': days, 'known': known,
-            'costModel': 'illustration' if source == 'demo' else 'uncalibrated'}
+            'costModel': 'uncalibrated'}

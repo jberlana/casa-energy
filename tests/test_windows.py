@@ -193,10 +193,13 @@ class WindowAPITests(unittest.TestCase):
         with patch.object(web, 'read_environment', side_effect=sqlite3.OperationalError):
             self.assertEqual(len(self.read()['events']), 1)
 
-    def test_demo_produces_candidates_without_accessing_history(self):
-        with patch.object(web, 'database', side_effect=AssertionError('private access')):
-            result = web.window_events(101, web.DEMO_END - 7 * DAY, web.DEMO_END, 'demo')
-        self.assertTrue(result['events'])
+    def test_retired_demo_does_not_read_history_or_annotations(self):
+        with patch.object(web, 'database') as database, patch.object(self.store, 'labels') as labels:
+            with self.assertRaises(HTTPException) as error:
+                web.window_events(1, BASE, BASE + DAY, 'demo')
+            self.assertEqual(error.exception.status_code, 422)
+            database.assert_not_called()
+            labels.assert_not_called()
 
 
 class CalibrationTests(unittest.TestCase):

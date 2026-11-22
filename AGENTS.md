@@ -21,7 +21,7 @@ installation time zone and units; language changes must not rewrite stored house
 - Use synthetic data and temporary directories for development and tests. Never import real
   readings, invoices, screenshots, logs, credentials, personal paths, device IDs or coordinates.
 - Do not load a private installation to manufacture a fixture. Public configuration examples
-  must be empty or clearly fictitious. Keep the demo independent of real providers.
+  must be empty or clearly fictitious. Keep tests independent of real providers.
 - No network calls to a user's devices/accounts or installation of LaunchAgents unless the task
   authorizes that work. Ordinary checks must not affect running services.
 - `PUBLIC_FILES.txt` is an explicit reviewed list, not a generated inventory of the whole checkout.

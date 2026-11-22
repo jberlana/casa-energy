@@ -54,8 +54,8 @@ source file is not a migration. Do not move runtime data simply because source d
 - Union of room demand counts simultaneous requests once; it does not measure gas or confirm flame.
 - Unknown/disconnected intervals stay unknown. Partial session boundaries remain explicit.
 - Temperature changes retain original sample timing and coverage requirements.
-- Invoice totals and synthetic estimates have distinct provenance. Fixed charges are not avoided
-  by switching off an individual session.
+- Verified invoices report consumption by billing period. Fixed charges are not avoided by switching
+  off an individual session.
 - Refreshing data must not reset gestures or historical viewports.
 
 ## Extension strategy

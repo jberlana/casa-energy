@@ -1,7 +1,7 @@
 import { useDataRevision } from "../../lib/refresh";
 import { useEffect, useState } from "react";
 import { Sun, Moon, CloudSun, CloudMoon, Cloud, CloudFog, CloudDrizzle, CloudRain, CloudSnow, CloudLightning, CircleHelp, X } from "lucide-react";
-import { DAY, HOUR, date, fmt, get, type Range, type Source } from "../../lib/types";
+import { DAY, HOUR, date, fmt, get, type Range } from "../../lib/types";
 
 export interface WeatherHour {
   timestamp: number;
@@ -49,7 +49,7 @@ export function daylightBands(data: Environment | null, range: Range) {
 }
 
 const cache = new Map<string, { value: Environment; at: number }>();
-export function useEnvironment(source: Source, range: Range) {
+export function useEnvironment(range: Range) {
   const revision = useDataRevision();
   const [data, setData] = useState<Environment | null>(null);
   useEffect(() => { cache.clear(); }, [revision]);
@@ -57,7 +57,6 @@ export function useEnvironment(source: Source, range: Range) {
   const start = Math.floor(range.min / DAY) * DAY - DAY;
   const end = Math.ceil(range.max / DAY) * DAY + DAY;
   useEffect(() => {
-    if (source === "demo") { setData(null); setFailed(false); return; }
     const controller = new AbortController();
     const url = `/api/environment?start=${start}&end=${end}`;
     let active = true;
@@ -74,7 +73,7 @@ export function useEnvironment(source: Source, range: Range) {
     const debounce = setTimeout(load, 150);
     const timer = setInterval(() => { if (document.visibilityState === "visible") load(); }, 60_000);
     return () => { active = false; controller.abort(); clearTimeout(debounce); clearInterval(timer); };
-  }, [source, start, end, revision]);
+  }, [start, end, revision]);
   return { data, failed };
 }
 

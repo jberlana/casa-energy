@@ -1,6 +1,6 @@
 # Web application
 
-React + TypeScript + Vite + Highcharts Stock. The public build starts with synthetic demo data.
+React + TypeScript + Vite + Highcharts Stock. The application displays history collected by the local installation.
 
 ```sh
 npm ci --prefix web
@@ -8,10 +8,10 @@ npm run dev --prefix web
 npm run build --prefix web
 ```
 
-Run from the repository root. The development proxy points to the local Python API on port 8765.
+Run from the repository root. The development proxy points to the local Python API on port 8767 unless `TADO_WEB_PORT` is set.
 `dist/` and `node_modules/` are generated and must not be committed.
 
-- `src/main.tsx`: app composition, selected source/room and shared range summary.
+- `src/main.tsx`: app composition, selected room and shared range summary.
 - `src/features/RefreshMenu.tsx`: explicit provider refresh actions, accessible keyboard navigation and bounded-job status.
 - `src/features/heating/`: chart lifecycle, touch gestures, sessions and invoice context.
   `Windows.tsx` adds small ventilation markers and an on-demand detail; it does not remount the chart.

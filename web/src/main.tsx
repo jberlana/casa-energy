@@ -4,9 +4,6 @@ import {
   House,
   Thermometer,
   Flame,
-  ChevronDown,
-  Activity,
-  Beaker,
   Droplets,
   Clock3,
   ArrowDownRight,
@@ -26,7 +23,6 @@ import {
   type Data,
   type Meta,
   type Range,
-  type Source,
 } from "./lib/types";
 import "./style.css";
 import { DATA_UPDATED, useAutoRefresh, useDataRevision } from "./lib/refresh";
@@ -38,9 +34,8 @@ function duration(ms: number) {
     : `${Math.floor(minutes / 60)} h ${minutes % 60 ? `${minutes % 60} min` : ""}`;
 }
 function App() {
-  const [source, setSource] = useState<Source>("demo"),
-    [meta, setMeta] = useState<Meta | null>(null),
-    [room, setRoom] = useState(101),
+  const [meta, setMeta] = useState<Meta | null>(null),
+    [room, setRoom] = useState(1),
     [error, setError] = useState("");
   const [view, setView] = useState<{ data: Data | null; range: Range }>({
     data: null,
@@ -51,7 +46,7 @@ function App() {
     [],
   );
   const [retry, setRetry] = useState(0);
-  useAutoRefresh(source);
+  useAutoRefresh();
   const revision = useDataRevision();
   useEffect(() => {
     let active = true;
@@ -59,14 +54,13 @@ function App() {
     const refresh = async () => {
       try {
         const next = await get<Meta>(
-          `/api/meta?source=${source}`,
+          "/api/meta",
           controller.signal,
         );
         if (active) {
           setMeta(next);
           setError("");
-          if (!next.rooms.some((r) => r.id === room))
-            setRoom(next.rooms[0]?.id ?? 101);
+          setRoom(current => next.rooms.some(r => r.id === current) ? current : next.rooms[0]?.id ?? 1);
         }
       } catch (e) {
         if (active)
@@ -88,10 +82,9 @@ function App() {
       controller.abort();
       clearInterval(timer);
     };
-  }, [source, retry]);
+  }, [retry]);
   const selected = meta?.rooms.find((r) => r.id === room);
   const [stats, setStats] = useState<{
-    source: Source;
     room: number;
     start: number;
     end: number;
@@ -113,7 +106,7 @@ function App() {
     const timer = setTimeout(
       () =>
         get<NonNullable<typeof stats>>(
-          `/api/summary?source=${source}&room=${room}&start=${Math.floor(view.range.min)}&end=${Math.ceil(view.range.max)}`,
+          `/api/summary?room=${room}&start=${Math.floor(view.range.min)}&end=${Math.ceil(view.range.max)}`,
           controller.signal,
         )
           .then(setStats)
@@ -126,8 +119,8 @@ function App() {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [room, source, view.range.min, view.range.max, meta?.updated, revision]);
-  const valid = stats?.room === room && stats.source === source ? stats : null;
+  }, [room, view.range.min, view.range.max, meta?.updated, revision]);
+  const valid = stats?.room === room ? stats : null;
   const min = valid?.min ?? null,
     max = valid?.max ?? null,
     heatMs = valid?.heatMs ?? 0,
@@ -145,29 +138,9 @@ function App() {
           Casa
         </a>
         <div className="header-right">
-          <label
-            className={"source-switch " + (source === "demo" ? "demo" : "")}
-          >
-            <span className="sr-only">Data source</span>
-            {source === "demo" ? <Beaker size={15} /> : <Activity size={15} />}
-            <select
-              value={source}
-              onChange={(e) => setSource(e.target.value as Source)}
-            >
-              <option value="real">My home</option>
-              <option value="demo">Demo · 6 months</option>
-            </select>
-            <ChevronDown size={14} />
-          </label>
-          <RefreshMenu key={source} source={source} />
+          <RefreshMenu />
         </div>
       </header>
-      {source === "demo" && (
-        <div className="demo-banner">
-          <Beaker size={16} />
-          <strong>Simulated data</strong>
-        </div>
-      )}
       <div className="workspace">
         <nav className="room-nav" aria-label="Rooms">
             {meta?.rooms.map((item) => (
@@ -202,6 +175,8 @@ function App() {
               <div className="skeleton graph" />
               <p>Loading home history…</p>
             </div>
+          ) : !selected ? (
+            <p className="no-changes">No room history has been collected yet.</p>
           ) : (
             <>
               <div className="page-heading">
@@ -226,10 +201,8 @@ function App() {
                 </div>
               </div>
               <Timeline
-                key={source}
                 meta={meta}
                 room={room}
-                source={source}
                 onView={onView}
               >
               <section
@@ -322,7 +295,7 @@ function App() {
                     </p>
                   )}
                 </section>
-                {source === "real" && <Invoices historyStart={meta.start} historyEnd={meta.end} />}
+                <Invoices historyStart={meta.start} historyEnd={meta.end} />
               </div>
 
             </>

@@ -1,4 +1,3 @@
-export type Source = "real" | "demo";
 export interface Room {
   id: number;
   name: string;
@@ -7,7 +6,6 @@ export interface Room {
   observed: number | null;
 }
 export interface Meta {
-  source: Source;
   start: number;
   end: number;
   latest: number | null;
@@ -22,7 +20,6 @@ export interface Interval {
   value: unknown;
 }
 export interface Data {
-  source: Source;
   room: number;
   start: number;
   end: number;

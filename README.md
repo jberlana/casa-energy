@@ -4,12 +4,12 @@ A local prototype for exploring heating history: temperature, targets, combined 
 outdoor conditions and gas invoices. React, TypeScript and Highcharts Stock over a FastAPI and SQLite backend.
 
 **This repository contains code and synthetic tests. It does not include real readings, invoices,
-credentials, installation identifiers or private addresses. The interface starts in demo mode.**
+credentials, installation identifiers or private addresses.**
 
 ## Features
 
 - A continuous timeline with panning, pinch to zoom and reading inspection.
-- Sessions calculated from the union of room demand, without double-counting overlaps.
+- Compact heating sessions show the first room to request heat and the recorded demand changes.
 - Optional weather context from Open-Meteo and a local Hue sensor.
 - Locally imported verified invoices, separating consumption from fixed charges.
 - Silent refresh of stale data while the web interface is visible, with shared limits and locking.
@@ -17,8 +17,7 @@ credentials, installation identifiers or private addresses. The interface starts
 - Optional private access through Tailscale; the server listens on loopback.
 - Possible ventilation events on the chart, with discreet feedback and [guided calibration](docs/ventilation.md).
 
-Demand does not confirm burner operation or measure gas consumption. Demo costs are hypothetical examples,
-not estimates calibrated for a home. Gaps and incomplete periods are preserved.
+Demand does not confirm burner operation or measure gas consumption. Gaps and incomplete periods are preserved.
 
 ## Quick start
 
@@ -26,12 +25,11 @@ Python 3.11+ and Node.js 22+. From the repository root:
 
 ```sh
 make setup
-make demo
+make dev
 ```
 
-Open `http://127.0.0.1:8765`. The demo needs no accounts and uses `.local/` for its state.
-If the port is busy, use `TADO_WEB_PORT=8767 make demo`. The real-history health endpoint requires
-a configured database; the demo works without one.
+Open `http://127.0.0.1:8767`. The development server uses an isolated store under `.local/` and
+starts with an empty history. Configure a private installation to view collected data.
 
 ## Organization
 

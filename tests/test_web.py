@@ -76,40 +76,32 @@ class HistoryWebTests(unittest.TestCase):
         self.assertEqual(min(s[2] for s in result['samples']),10)
         self.assertEqual(result['gaps'],[[self.base+4*web.MINUTE,self.base+50*web.MINUTE]])
 
-    def test_export_keeps_original_samples_and_labels_demo(self):
+    def test_export_keeps_original_samples(self):
         for i in range(30): self.sample(i*web.MINUTE,20+i/10)
         self.db.commit()
         response=web.export(1,self.base,self.base+30*web.MINUTE)
         rows=list(csv.DictReader(io.StringIO(response.body.decode())))
         self.assertEqual(len(rows),30)
         self.assertEqual(rows[0]['source'],'real')
-        demo=web.export(101,web.DEMO_END-2*web.MINUTE,web.DEMO_END,'demo')
-        self.assertIn('demo,101,',demo.body.decode())
 
-    def test_demo_is_deterministic_and_does_not_write_history(self):
-        self.db.commit()
-        before=(self.root/'history.sqlite3').read_bytes()
-        start=web.DEMO_END-60*web.MINUTE
-        a=web.get_data('demo',101,start,web.DEMO_END)[0]
-        b=web.get_data('demo',101,start+30*web.MINUTE,web.DEMO_END)[0]
-        self.assertEqual(a[-len(b):],b)
-        self.assertEqual(before,(self.root/'history.sqlite3').read_bytes())
-        self.assertEqual(web.metadata('demo')['rooms'][0]['temperature'],a[-1][1])
+    def test_retired_demo_is_rejected(self):
+        for endpoint, args in [
+            (web.metadata, ()),
+            (web.series, (1, self.base, self.base + web.DAY)),
+            (web.summary, (1, self.base, self.base + web.DAY)),
+            (web.export, (1, self.base, self.base + web.DAY)),
+            (web.sessions, (1, self.base, self.base + web.DAY)),
+        ]:
+            with self.subTest(endpoint=endpoint.__name__):
+                with self.assertRaises(HTTPException) as error:
+                    endpoint(*args, source='demo')
+                self.assertEqual(error.exception.status_code, 422)
 
     def test_invalid_ranges_sources_and_rooms_are_rejected(self):
         for start,end in [(2,1),(-1,50),(0,367*web.DAY)]:
             with self.assertRaises(HTTPException): web.window(start,end)
         with self.assertRaises(HTTPException): web.get_data('not-real',1,0,50)
         with self.assertRaises(HTTPException): web.get_data('real',999,0,50)
-
-    def test_demo_room_ids_keep_readings_in_a_plausible_range_without_private_data(self):
-        with patch.object(web, 'database', side_effect=AssertionError('private access')):
-            rooms = web.metadata('demo')['rooms']
-            self.assertEqual([r['id'] for r in rooms], [101, 102, 103, 104])
-            for room in rooms:
-                samples, _ = web.get_data('demo', room['id'], web.DEMO_END-web.DAY, web.DEMO_END)
-                self.assertTrue(samples)
-                self.assertTrue(all(10 < sample[1] < 30 and 0 < sample[2] < 100 for sample in samples))
 
 
 if __name__ == '__main__':

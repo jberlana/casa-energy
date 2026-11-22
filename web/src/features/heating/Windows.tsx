@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Wind, X } from 'lucide-react';
-import { date, fmt, get, type Range, type Source } from '../../lib/types';
+import { date, fmt, get, type Range } from '../../lib/types';
 import { useDataRevision } from '../../lib/refresh';
 
 type Label = 'yes' | 'no' | 'unknown';
@@ -11,7 +11,7 @@ interface WindowEvent {
   confirmedWindow?: [number, number];
 }
 interface WindowEvents {
-  source: Source; room: number; start: number; end: number; events: WindowEvent[];
+  room: number; start: number; end: number; events: WindowEvent[];
   askForFeedback: boolean; reviewedCount: number;
 }
 interface Plot extends Range { left: number; top: number; width: number; height: number }
@@ -19,8 +19,8 @@ const clock = (t: number) => date(t, {hour: '2-digit', minute: '2-digit'});
 const title = (e: WindowEvent) => e.label === 'yes' ? 'Confirmed by you' : e.label === 'no' ? 'Not ventilation' :
   e.origins.includes('tado') ? 'Detected by Tado' : 'Possible ventilation';
 
-export function WindowInsights({source, room, range, plot, updated}: {
-  source: Source; room: number; range: Range; plot: Plot; updated: number | null;
+export function WindowInsights({room, range, plot, updated}: {
+  room: number; range: Range; plot: Plot; updated: number | null;
 }) {
   const revision = useDataRevision();
   const [data, setData] = useState<WindowEvents | null>(null);
@@ -36,15 +36,15 @@ export function WindowInsights({source, room, range, plot, updated}: {
     const controller = new AbortController();
     const timer = setTimeout(() => {
       setFailed(false);
-      get<WindowEvents>(`/api/window-events?source=${source}&room=${room}&start=${Math.floor(range.min)}&end=${Math.ceil(range.max)}`, controller.signal)
+      get<WindowEvents>(`/api/window-events?room=${room}&start=${Math.floor(range.min)}&end=${Math.ceil(range.max)}`, controller.signal)
         .then(result => { if (!controller.signal.aborted) setData(result); })
         .catch(() => { if (!controller.signal.aborted) setFailed(true); });
     }, 250);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [source, room, range.min, range.max, updated, revision, reload]);
-  useEffect(() => { setSelection(null); setEditing(false); setSaveError(false); }, [source, room]);
+  }, [room, range.min, range.max, updated, revision, reload]);
+  useEffect(() => { setSelection(null); setEditing(false); setSaveError(false); }, [room]);
   useEffect(() => { if (selection) panel.current?.focus({preventScroll: true}); }, [selection]);
-  const current = data?.source === source && data.room === room && data.start <= Math.floor(plot.min) && data.end >= Math.ceil(plot.max) ? data : null;
+  const current = data?.room === room && data.start <= Math.floor(plot.min) && data.end >= Math.ceil(plot.max) ? data : null;
   const visible = current?.events.filter(e => e.end >= plot.min && e.start <= plot.max) ?? [];
   const selected = visible.find(e => e.id === selection);
   const groups: {x: number; events: WindowEvent[]}[] = [];
@@ -64,7 +64,7 @@ export function WindowInsights({source, room, range, plot, updated}: {
       const response = await fetch('/api/window-feedback', {
         method: 'POST', headers: {'Content-Type': 'application/json', 'X-Casa-Feedback': '1'},
         signal: AbortSignal.timeout(15000),
-        body: JSON.stringify({source, room, eventId: event.id, start: event.start, end: event.end, label}),
+        body: JSON.stringify({room, eventId: event.id, start: event.start, end: event.end, label}),
       });
       if (!response.ok) throw new Error('feedback');
       setData(previous => previous && ({...previous,
@@ -90,7 +90,6 @@ export function WindowInsights({source, room, range, plot, updated}: {
       onKeyDown={e => { if (e.key === 'Escape') {e.stopPropagation(); close();} }}>
       <div className="window-heading"><strong><Wind size={17}/>{title(selected)}</strong><button aria-label="Close ventilation details" onClick={close}><X size={18}/></button></div>
       <p className="window-time">{date(selected.start, {day:'numeric',month:'short'})} · {selected.confirmedWindow ? `${clock(selected.confirmedWindow[0])} – ${clock(selected.confirmedWindow[1])} · recorded` : selected.onset[0] === selected.onset[1] ? clock(selected.start) : `Between ${clock(selected.onset[0])} and ${clock(selected.onset[1])}`}</p>
-      {source === 'demo' && <p className="window-note">Example using simulated data.</p>}
       {selected.dropC !== null && <p className="window-drop">−{fmt(selected.dropC, 2)} °C <span>observed drop</span></p>}
       <details><summary>View evidence</summary>
         <ul>{selected.reasons.map(reason => <li key={reason}>{reason}</li>)}</ul>

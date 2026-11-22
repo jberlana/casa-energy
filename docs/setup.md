@@ -42,7 +42,7 @@ See [scripts/README.md](../scripts/README.md) for installation commands.
 ## Refresh from the menu
 
 The three-dot menu in the header refreshes Tado, Hue or Octopus separately in
-"My home" mode. Actions are disabled in the demo. Results appear inside the menu;
+the local installation. Results appear inside the menu;
 on completion, local data is queried again without changing the zoom or selected room.
 
 - **Tado:** queries even when data is recent, while preserving the 30-minute cooldown,
@@ -80,9 +80,8 @@ Tado uses the collector's successful completion, Hue the latest valid local obse
 Octopus the last completed document synchronization. These are refresh times, not invoice dates
 or the time a sensor value last changed.
 
-At the top of the page in My home, pull down on the header or room heading and release after the
+At the top of the page, pull down on the header or room heading and release after the
 refresh hint changes. Chart touches, controls, horizontal movement, pinches and cancelled gestures
-are excluded. The menu also offers Refresh all for keyboard and desktop use. Demo never requests
-provider updates. One server request reserves all eligible providers under the shared lock, with
+are excluded. The menu also offers Refresh all for keyboard and desktop use. One server request reserves all eligible providers under the shared lock, with
 independent quotas and results; a skipped or failed provider does not stop the others. The hint
 reports partial completion, and the menu gives the individual reasons. Graphs keep their viewport.

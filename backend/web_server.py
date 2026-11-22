@@ -30,9 +30,6 @@ DIST = Path(os.environ.get("TADO_WEB_DIST", Path(__file__).resolve().parents[1] 
 INVOICES = Path(os.environ.get("CASA_INVOICES", Path(__file__).resolve().parents[1] / "output/octopus/verified-invoices.json"))
 DAY = 86_400_000
 MINUTE = 60_000
-DEMO_END = int(datetime.now(timezone.utc).timestamp() // 60) * MINUTE
-DEMO_START = DEMO_END - 180 * DAY
-ROOM_NAMES = {101: "Demo A", 102: "Demo B", 103: "Demo C", 104: "Demo D"}
 HEAT_LEVELS = {"LOW", "MEDIUM", "HIGH", "HEATING"}
 refresh_coordinator = Coordinator()
 window_store = WindowStore(Path(os.environ.get('TADO_WEB_ROOT', Path.home() / 'Library/Application Support/TadoWeb')))
@@ -81,7 +78,7 @@ def database():
 
 
 def validate_source(source):
-    if source not in ("real", "demo"):
+    if source != "real":
         raise HTTPException(422, "Unknown source")
 
 
@@ -118,10 +115,9 @@ def require_refresh_origin(request):
 
 
 @app.post('/api/refresh/{provider}')
-def refresh_provider(request: Request, provider: Literal['tado', 'hue', 'octopus', 'all'], source: Literal['real', 'demo'] = Query(...)):
+def refresh_provider(request: Request, provider: Literal['tado', 'hue', 'octopus', 'all'], source: str = "real"):
     require_refresh_origin(request)
-    if source != 'real':
-        raise HTTPException(409, 'Select My home to refresh providers')
+    validate_source(source)
     return refresh_coordinator.request_manual(provider)
 
 
@@ -129,10 +125,6 @@ def refresh_provider(request: Request, provider: Literal['tado', 'hue', 'octopus
 def environment(start: int, end: int, source: str = "real"):
     validate_source(source)
     window(start, end)
-    if source == "demo":
-        return {"sensor": "Entrance", "outdoor": [], "weather": [], "days": [],
-                "hueStatus": None, "weatherStatus": None, "firstOutdoor": None,
-                "location": "Local", "timezone": "Europe/Madrid"}
     try:
         return read_environment(start, end)
     except sqlite3.Error:
@@ -142,12 +134,6 @@ def environment(start: int, end: int, source: str = "real"):
 @app.get("/api/meta")
 def metadata(source: str = "real"):
     validate_source(source)
-    if source == "demo":
-        return {"source": source, "start": DEMO_START, "end": DEMO_END,
-                "latest": DEMO_END, "updated": DEMO_END, "sampleMinutes": 1,
-                "rooms": [{"id": rid, "name": name, "temperature": demo_sample(DEMO_END, rid)[0][1],
-                           "humidity": demo_sample(DEMO_END, rid)[0][2], "observed": DEMO_END}
-                          for rid, name in ROOM_NAMES.items()]}
     with database() as db:
         rooms = []
         for room in db.execute("SELECT * FROM rooms WHERE active=1 ORDER BY room_id"):
@@ -163,39 +149,6 @@ def metadata(source: str = "real"):
         return {"source": source, "start": ms(times[0]) if times[0] else now - DAY,
                 "latest": ms(times[1]) if times[1] else None, "end": now,
                 "updated": ms(updated) if updated else None, "rooms": rooms, "sampleMinutes": 15}
-
-
-def demo_sample(t, room):
-    room = list(ROOM_NAMES).index(room) + 1  # Synthetic ordinal, independent of installation IDs.
-    # Absolute time gives identical overlapping requests. Explicitly synthetic, never persisted.
-    hour = (t / 3_600_000 + 1) % 24
-    day = math.floor(t / DAY)
-    target = 20.5 if 6 <= hour < 9 or 17 <= hour < 23 else 18.0
-    temp = 19.5 + .8 * math.sin((hour - 9) * math.pi / 12) + .38 * math.sin(day * .43 + room)
-    temp += (room - 2) * .16 + .06 * math.sin(t / MINUTE / 8)
-    if day % 5 == 0 and 11 <= hour < 12:
-        temp -= 1.9 * math.sin((hour - 11) * math.pi)
-    humidity = 48 + 5 * math.sin(hour * math.pi / 12) + room * .8
-    return [t, round(temp, 2), round(humidity, 1)], target, "MEDIUM" if target > temp + .2 else "NONE"
-
-
-def demo_data(room, start, end):
-    start, end = max(start, DEMO_START), min(end, DEMO_END)
-    samples, events = [], []
-    if start >= end:
-        return samples, events
-    previous = {}
-    for t in range(math.ceil(start / MINUTE) * MINUTE, end + 1, MINUTE):
-        sample, target, demand = demo_sample(t, room)
-        samples.append(sample)
-        for series, value in (("settings", {"power": "ON", "temperature": {"celsius": target}}),
-                              ("callForHeat", demand), ("connected", True)):
-            if series not in previous or previous[series]["value"] != value:
-                if series in previous:
-                    previous[series]["end"] = t
-                previous[series] = {"series": series, "start": t, "end": end, "value": value}
-                events.append(previous[series])
-    return samples, events
 
 
 def real_data(db, room, start, end):
@@ -256,10 +209,6 @@ def decimate(samples, bucket_ms):
 def get_data(source, room, start, end):
     validate_source(source)
     window(start, end)
-    if source == "demo":
-        if room not in ROOM_NAMES:
-            raise HTTPException(404, "Unknown room")
-        return demo_data(room, start, end)
     with database() as db:
         return real_data(db, room, start, end)
 
@@ -269,7 +218,7 @@ def series(room: int, start: int, end: int, source: str = "real", buckets: int =
     samples, events = get_data(source, room, start, end)
     bucket_ms = max(MINUTE, math.ceil((end - start) / buckets / MINUTE) * MINUTE)
     # Mark actual acquisition gaps before reduction so they survive an overview.
-    max_gap = (2 if source == "demo" else 25) * MINUTE
+    max_gap = 25 * MINUTE
     gaps = [[a[0], b[0]] for a, b in zip(samples, samples[1:]) if b[0] - a[0] > max_gap]
     return {"source": source, "room": room, "start": start, "end": end,
             "bucketMs": bucket_ms, "rawCount": len(samples),
@@ -328,22 +277,14 @@ def sessions(room: int, start: int, end: int, source: str = "real"):
     # A bounded margin resolves most sessions crossing the viewport; remaining edges stay partial.
     a, b = max(0, start-DAY), end+DAY
     rooms = {}
-    if source == "demo":
-        if room not in ROOM_NAMES:
+    with database() as db:
+        records = db.execute("SELECT room_id,name FROM rooms WHERE active=1").fetchall()
+        if room not in [r[0] for r in records]:
             raise HTTPException(404, "Unknown room")
-        for rid, name in ROOM_NAMES.items():
-            # Only the selected room needs samples. Other rooms need state transitions.
-            samples, events = demo_data(rid, a, b)
+        for rid, name in records:
+            samples, events = real_data(db, rid, a, b)
             rooms[rid] = {"name": name, "samples": samples if rid == room else [], "events": events}
-    else:
-        with database() as db:
-            records = db.execute("SELECT room_id,name FROM rooms WHERE active=1").fetchall()
-            if room not in [r[0] for r in records]:
-                raise HTTPException(404, "Unknown room")
-            for rid, name in records:
-                samples, events = real_data(db, rid, a, b)
-                rooms[rid] = {"name": name, "samples": samples if rid == room else [], "events": events}
-    return analyse(rooms, room, start, end, a, b, source)
+    return analyse(rooms, room, start, end, a, b)
 
 
 @app.get("/api/invoices")
@@ -364,21 +305,6 @@ def invoices():
             "resolution": "billing_period", "completeHistory": False}
 
 
-def demo_window_data(room, start, end):
-    # Match the history's normal resolution; do not train on the minute-level demo chart.
-    samples, events, previous = [], [], {}
-    for t in range(math.ceil(max(start, DEMO_START) / (15 * MINUTE)) * 15 * MINUTE, min(end, DEMO_END) + 1, 15 * MINUTE):
-        sample, target, heat = demo_sample(t, room)
-        samples.append(sample)
-        for series, value in [('connected', True), ('callForHeat', heat), ('settings', {'power': 'ON', 'temperature': {'celsius': target}})]:
-            if series not in previous or previous[series]['value'] != value:
-                if series in previous:
-                    previous[series]['end'] = t
-                previous[series] = {'series': series, 'value': value, 'start': t, 'end': min(end, DEMO_END)}
-                events.append(previous[series])
-    return samples, events
-
-
 @app.get('/api/window-events')
 def window_events(room: int, start: int, end: int, source: str = 'real'):
     validate_source(source)
@@ -388,36 +314,30 @@ def window_events(room: int, start: int, end: int, source: str = 'real'):
     snapshots, peers, outdoor, trial_samples, trial_events = [], [], [], [], []
     try:
         labels = window_store.labels(source, room)
-        trials = window_store.experiments(room) if source == 'real' else []
-        if source == 'demo':
-            if room not in ROOM_NAMES:
-                raise HTTPException(404, 'Unknown room')
-            samples, events = demo_window_data(room, a, b)
-            peers = [demo_window_data(r, a, b)[0] for r in ROOM_NAMES if r != room]
-        else:
-            with database() as db:
-                samples, events = real_data(db, room, a, b)
-                for trial in trials:
-                    if trial['opened'] and trial['closed']:
-                        readings, states = real_data(db, room, trial['opened'] - 20 * MINUTE, trial['closed'] + 20 * MINUTE)
-                        trial_samples.extend(readings)
-                        trial_events.extend(states)
-                home = db.execute('SELECT home_id FROM rooms WHERE room_id=? AND active=1', (room,)).fetchone()[0]
-                # Read only the fields needed by the detector, never expose raw provider responses.
-                snapshots = [{'at': ms(row[0]), 'openWindow': json.loads(row[1]).get('openWindow')}
-                             for row in db.execute('SELECT observed_at,value_json FROM snapshots WHERE home_id=? AND room_id=? AND observed_at>=? AND observed_at<=? ORDER BY observed_at',
-                                                   (home, room, iso(a), iso(b)))]
-                for (rid,) in db.execute('SELECT room_id FROM rooms WHERE home_id=? AND active=1 AND room_id!=?', (home, room)):
-                    peer_samples, peer_events = real_data(db, rid, a, b)
-                    connected = Context(peer_events)
-                    peers.append([[t, temp if connected.at('connected', t) is True else None, humidity]
-                                  for t, temp, humidity in peer_samples])
-            try:
-                context = read_environment(a, b)
-                # Weather is the exterior reference; an entrance sensor is not assumed outdoors.
-                outdoor = [[r['timestamp'], r['temperature']] for r in context['weather']]
-            except (sqlite3.Error, OSError):
-                pass  # Optional context must not suppress an otherwise observable candidate.
+        trials = window_store.experiments(room)
+        with database() as db:
+            samples, events = real_data(db, room, a, b)
+            for trial in trials:
+                if trial['opened'] and trial['closed']:
+                    readings, states = real_data(db, room, trial['opened'] - 20 * MINUTE, trial['closed'] + 20 * MINUTE)
+                    trial_samples.extend(readings)
+                    trial_events.extend(states)
+            home = db.execute('SELECT home_id FROM rooms WHERE room_id=? AND active=1', (room,)).fetchone()[0]
+            # Read only the fields needed by the detector, never expose raw provider responses.
+            snapshots = [{'at': ms(row[0]), 'openWindow': json.loads(row[1]).get('openWindow')}
+                         for row in db.execute('SELECT observed_at,value_json FROM snapshots WHERE home_id=? AND room_id=? AND observed_at>=? AND observed_at<=? ORDER BY observed_at',
+                                               (home, room, iso(a), iso(b)))]
+            for (rid,) in db.execute('SELECT room_id FROM rooms WHERE home_id=? AND active=1 AND room_id!=?', (home, room)):
+                peer_samples, peer_events = real_data(db, rid, a, b)
+                connected = Context(peer_events)
+                peers.append([[t, temp if connected.at('connected', t) is True else None, humidity]
+                              for t, temp, humidity in peer_samples])
+        try:
+            context = read_environment(a, b)
+            # Weather is the exterior reference; an entrance sensor is not assumed outdoors.
+            outdoor = [[r['timestamp'], r['temperature']] for r in context['weather']]
+        except (sqlite3.Error, OSError):
+            pass  # Optional context must not suppress an otherwise observable candidate.
         confirmed = guided_annotations(trials, sorted({s[0]: s for s in trial_samples}.values()), normalize_events(trial_events))
         result = detection(room, samples, events, start, end, snapshots=snapshots, peers=peers,
                            outdoor=outdoor, labels=labels, confirmed=confirmed)
@@ -428,7 +348,7 @@ def window_events(room: int, start: int, end: int, source: str = 'real'):
 
 class WindowFeedback(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
-    source: Literal['real', 'demo']
+    source: Literal['real'] = 'real'
     room: int = Field(gt=0)
     eventId: str = Field(min_length=1, max_length=100)
     start: int = Field(ge=0)

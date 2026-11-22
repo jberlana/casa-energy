@@ -8,7 +8,7 @@ python3 -m backend.octopus_api --help
 .venv/bin/python -m backend.web_server
 ```
 
-Prefer `make demo` for an isolated development server. Running the module directly uses normal
+Prefer `make dev` for an isolated development server. Running the module directly uses normal
 runtime defaults; do not run collectors without configuring and authorizing the target installation.
 
 | Module | Owns | External access |

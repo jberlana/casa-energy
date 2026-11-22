@@ -22,9 +22,8 @@ import {
   type Data,
   type Meta,
   type Range,
-  type Source,
 } from "../../lib/types";
-import { useSessions, SessionDetail, euros } from "./Sessions";
+import { useSessions, SessionDetail } from "./Sessions";
 import { WindowInsights } from "./Windows";
 import { useDataRevision } from "../../lib/refresh";
 import { installGestures } from "./gestures";
@@ -37,13 +36,10 @@ Highcharts.setOptions({
 interface Props {
   meta: Meta;
   room: number;
-  source: Source;
   onView: (data: Data | null, range: Range) => void;
   children?: ReactNode;
 }
 const cache = new Map<string, { data: Data; time: number; bytes: number }>();
-const ENERGY_COLOR = "#306f75";
-const DAILY_COLUMN_WIDTH = DAY * .7;
 function remember(key: string, data: Data) {
   cache.delete(key);
   cache.set(key, {
@@ -139,25 +135,25 @@ function RangeControl({ range, bounds, onNavigate, onZoom }: {
   );
 }
 
-export function Timeline({ meta, room, source, onView, children }: Props) {
+export function Timeline({ meta, room, onView, children }: Props) {
   const revision = useDataRevision();
   const previousEnd = useRef(meta.end);
   const host = useRef<HTMLDivElement>(null),
     chartRef = useRef<Highcharts.Chart | null>(null);
-  const latest = useRef({ meta, room, source, onView });
-  latest.current = { meta, room, source, onView };
+  const latest = useRef({ meta, room, onView });
+  latest.current = { meta, room, onView };
   const loaded = useRef<Data | null>(null),
     loadRef = useRef<(r: Range, force?: boolean) => void>(() => {});
   const [range, setRange] = useState<Range>({
     min: meta.end - DAY,
     max: meta.end,
   });
-  const { data: environment, failed: environmentFailed } = useEnvironment(source, range);
+  const { data: environment, failed: environmentFailed } = useEnvironment(range);
   const environmentRef = useRef(environment);
   environmentRef.current = environment;
   const [showOutdoor, setShowOutdoor] = useState(true);
   const [plot, setPlot] = useState<Plot & { height: number }>({ left: 0, top: 0, width: 0, height: 0, min: range.min, max: range.max });
-  const sessions = useSessions(source, room, range, meta.updated);
+  const sessions = useSessions(room, range, meta.updated);
   const sessionsRef = useRef(sessions.data);
   sessionsRef.current = sessions.data;
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
@@ -246,7 +242,6 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
         !force &&
         d &&
         d.room === props.room &&
-        d.source === props.source &&
         d.start <= r.min - span * 0.3 &&
         d.end >= r.max + span * 0.3 &&
         d.bucketMs <= desiredBucket * 1.8
@@ -269,7 +264,7 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
               Math.round((chartRef.current?.plotWidth ?? 1000) / 4),
             ),
           );
-          const key = `${props.source}:${props.room}:${start}:${end}:${buckets}`;
+          const key = `${props.room}:${start}:${end}:${buckets}`;
           controller?.abort();
           controller = new AbortController();
           const request = controller;
@@ -280,14 +275,13 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
               !force && cached && Date.now() - cached.time < 60_000
                 ? cached.data
                 : await get<Data>(
-                    `/api/series?source=${props.source}&room=${props.room}&start=${start}&end=${end}&buckets=${buckets}`,
+                    `/api/series?room=${props.room}&start=${start}&end=${end}&buckets=${buckets}`,
                     request.signal,
                   );
             if (
               !alive ||
               request.signal.aborted ||
-              latest.current.room !== props.room ||
-              latest.current.source !== props.source
+              latest.current.room !== props.room
             )
               return;
             const axis = chartRef.current?.xAxis[0];
@@ -338,7 +332,7 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
       },
       accessibility: {
         description:
-          `Temperature, target and heating demand history${source === "demo" ? ", with simulated consumption" : ""}. Use arrow keys to pan and plus or minus to zoom.`,
+          "Temperature, target and heating demand history. Use arrow keys to pan and plus or minus to zoom.",
         keyboardNavigation: { enabled: false },
       },
       xAxis: {
@@ -367,8 +361,8 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
       },
       yAxis: [
         {
-          top: source === "demo" ? "0%" : "7%",
-          height: source === "demo" ? "96%" : "89%",
+          top: "7%",
+          height: "89%",
           opposite: false,
           title: { text: undefined },
           labels: {
@@ -384,12 +378,6 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
         },
         { top: "96%", height: "4%", min: 0, max: 1, visible: false, offset: 0 },
         { visible: false, min: 0, max: 1 },
-        {
-          top: "0%", height: "96%", min: 0, opposite: true, offset: 0,
-          title: { text: undefined }, gridLineWidth: 0, tickAmount: 4,
-          visible: source === "demo",
-          labels: { format: "{value} kWh", style: { fontSize: "11px", color: ENERGY_COLOR } },
-        },
       ],
       tooltip: {
         followTouchMove: false,
@@ -401,15 +389,6 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
         shadow: false,
         style: { color: "#fff", fontSize: "13px" },
         formatter() {
-          if (this.series.options.id?.startsWith("energy-")) {
-            const t = Number(this.x), data = sessionsRef.current;
-            const daily = this.series.options.type === "column";
-            const item = daily ? data?.days.find(d => (d.start+d.end)/2 === t) : data?.sessions.find(s => s.start <= t && s.end >= t);
-            const energy = item?.energyKwh;
-            const fraction = daily || !item ? 1 : (t - item.start) / (item.end - item.start);
-            const value = energy ? `${fmt(energy.low * fraction)} – ${fmt(energy.high * fraction)} kWh` : "—";
-            return `${date(t)}<br/><b>${value}</b><br/>${daily ? "Simulated consumption · visible part of the day" : "Simulated consumption · cumulative"}`;
-          }
           const t = Number(this.x), env = environmentRef.current;
           const weather = env?.weather.find(w => w.timestamp <= t && t - w.timestamp < HOUR);
           const exterior = env?.outdoor.reduce<(number | null)[] | undefined>((best, row) =>
@@ -425,11 +404,6 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
           const session = sessionsRef.current?.sessions.find(s=>s.start <= t && s.end >= t);
           if (session) {
             text += `<br/>Home session: ${date(session.start,{hour:'2-digit',minute:'2-digit'})} – ${date(session.end,{hour:'2-digit',minute:'2-digit'})}`;
-            if (session.energyKwh && session.cost) {
-              const fraction = (t-session.start)/session.durationMs;
-              text += `<br/>Simulated consumption: ${fmt(session.energyKwh.low*fraction)} – ${fmt(session.energyKwh.high*fraction)} kWh`;
-              text += `<br/>Simulated cost: ${euros(session.cost.low*fraction)} – ${euros(session.cost.high*fraction)}`;
-            }
           }
           if (weather) {
             text += `<br/><span style="color:#b7bfcb">Local · ${date(weather.timestamp, { hour: "2-digit", minute: "2-digit" })}</span><br/>${condition(weather.code, weather.is_day === 1).label} · ${fmt(weather.temperature)} °C`;
@@ -445,7 +419,7 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
           dataGrouping: { enabled: false },
           states: { hover: { lineWidthPlus: 0 }, inactive: { opacity: 1 } },
           turboThreshold: 10000,
-          point: { events: { click(e) { selectAt(e.chartX, e.chartY, this.series.options.id?.startsWith("energy-")); } } },
+          point: { events: { click(e) { selectAt(e.chartX, e.chartY); } } },
         },
         line: { marker: { enabled: false }, connectNulls: false },
       },
@@ -514,26 +488,17 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
         },
         { id: "house-known", name: "Known demand state", accessibility: { enabled: false }, type: "line", yAxis: 1, color: "#cdd4dc", lineWidth: 2, data: [], enableMouseTracking: false },
         { id: "house-heat", name: "Combined demand", type: "area", yAxis: 1, color: "#bd4c30", fillOpacity: .62, lineWidth: 0, step: "left", data: [], enableMouseTracking: false },
-        { id: "energy-high", name: "Maximum simulated consumption", type: "line", yAxis: 3, color: ENERGY_COLOR, dashStyle: "ShortDash", lineWidth: 1.6, zIndex: 2, data: [], visible: false },
-        { id: "energy-low", name: "Minimum simulated consumption", type: "line", yAxis: 3, color: ENERGY_COLOR, lineWidth: 1.6, zIndex: 2, data: [], visible: false },
-        { id: "energy-day-high", name: "Maximum simulated daily consumption", type: "column", yAxis: 3, color: "#306f752d", grouping: false, pointRange: 0, pointPadding: 0, groupPadding: 0, borderWidth: 0, data: [], visible: false },
-        { id: "energy-day-low", name: "Minimum simulated daily consumption", type: "column", yAxis: 3, color: "#306f755c", grouping: false, pointRange: 0, pointPadding: 0, groupPadding: 0, borderWidth: 0, data: [], visible: false },
       ],
     });
     chartRef.current = chart;
-    function selectAt(x: number, y: number, energyPoint = false) {
+    function selectAt(x: number, y: number) {
       const c = chartRef.current, data = sessionsRef.current;
-      if (!c || !data) return;
-      const demandHit = y >= c.yAxis[1].toPixels(1) - 6;
+      if (!c || !data || y < c.yAxis[1].toPixels(1) - 6) return;
       const t = c.xAxis[0].toValue(x);
       if (c.xAxis[0].max! - c.xAxis[0].min! > 3*DAY) {
         const day = data.days.find(d => d.start <= t && d.end > t);
-        if (!day) return;
-        // The temperature line's pointer target can overlap a column in the shared plot.
-        const columnHit = day.energyKwh && y >= c.yAxis[3].toPixels(day.energyKwh.high)
-          && Math.abs(t - (day.start + day.end) / 2) <= DAILY_COLUMN_WIDTH / 2;
-        if (demandHit || energyPoint || columnHit) c.xAxis[0].setExtremes(day.start, day.end, true, false);
-      } else if (demandHit || energyPoint) {
+        if (day) c.xAxis[0].setExtremes(day.start, day.end, true, false);
+      } else {
         const session = data.sessions.find(s => s.start <= t && s.end >= t);
         if (session) selectSession(session.id);
       }
@@ -555,48 +520,31 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
       chartRef.current = null;
       loaded.current = null;
     };
-  }, [source]);
+  }, []);
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
     const data = sessions.data;
     const known: [number, number | null][] = [], heat: [number, number | null][] = [];
-    const low: [number, number | null][] = [], high: [number, number | null][] = [];
     for (const [a,b] of data?.known ?? []) known.push([a,0],[b,0],[b,null]);
-    for (const s of data?.sessions ?? []) {
-      heat.push([s.start,1],[s.end,1],[s.end,null]);
-      if (s.energyKwh) {
-        low.push([s.start,0],[s.end,s.energyKwh.low],[s.end,null]);
-        high.push([s.start,0],[s.end,s.energyKwh.high],[s.end,null]);
-      }
+    for (const session of data?.sessions ?? []) {
+      heat.push([session.start, 1], [session.end, 1], [session.end, null]);
     }
-    const overview = range.max-range.min > 3*DAY;
-    const update = (id: string, rows: [number, number | null][], visible = true) => {
-      const series = chart.get(id) as Highcharts.Series;
-      if (id.startsWith('energy-day')) {
-        const pointRange = visible ? DAILY_COLUMN_WIDTH : 0;
-        if ((series.options as Highcharts.SeriesColumnOptions).pointRange !== pointRange)
-          series.update({ type: 'column', pointRange }, false);
-      }
-      series.setData(visible ? rows : [],false,false,false); series.setVisible(visible,false);
-    };
-    update('house-known', known); update('house-heat', heat);
-    update('energy-low', low, source === 'demo' && !overview);
-    update('energy-high', high, source === 'demo' && !overview);
-    update('energy-day-low', (data?.days ?? []).map(d => [(d.start + d.end) / 2, d.energyKwh?.low ?? null]), source === 'demo' && overview);
-    update('energy-day-high', (data?.days ?? []).map(d => [(d.start + d.end) / 2, d.energyKwh?.high ?? null]), source === 'demo' && overview);
+    const overview = range.max - range.min > 3 * DAY;
+    (chart.get("house-known") as Highcharts.Series).setData(known, false, false, false);
+    (chart.get("house-heat") as Highcharts.Series).setData(heat, false, false, false);
     const axis = chart.xAxis[0];
     axis.removePlotBand('selected-session');
     const visible = data?.sessions.filter(s=>s.end>range.min && s.start<range.max) ?? [];
     const selected = visible.find(s=>s.id===selectedSession) ?? visible[visible.length-1];
     if (selected && !overview) axis.addPlotBand({id:'selected-session',from:selected.start,to:selected.end,color:'#de5b3812',zIndex:1});
     chart.redraw(false);
-  }, [sessions.data, selectedSession, source, range.min, range.max]);
+  }, [sessions.data, selectedSession, range.min, range.max]);
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
     chart.series[5].setData((environment?.outdoor ?? []).map(s => [s[0], s[1]]), false, false, false);
-    chart.series[5].setVisible(showOutdoor && source === "real", false);
+    chart.series[5].setVisible(showOutdoor, false);
     const axis = chart.xAxis[0];
     // Replacing only our own bands preserves the user's zoom and pan position.
     for (const band of [...(axis.options.plotBands ?? [])]) if (band.id?.startsWith("sun-")) axis.removePlotBand(band.id);
@@ -604,7 +552,7 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
       axis.addPlotBand({ id: `sun-${from}`, from, to, color: daylight ? "#fbf0de" : "#e6eaf2", zIndex: 0 });
     }
     chart.redraw(false);
-  }, [environment, range.min, range.max, showOutdoor, source]);
+  }, [environment, range.min, range.max, showOutdoor]);
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
@@ -615,7 +563,7 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
     const r = { min: chart.xAxis[0].min!, max: chart.xAxis[0].max! };
     latest.current.onView(null, r);
     loadRef.current(r, true);
-  }, [room, source]);
+  }, [room]);
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
@@ -660,13 +608,13 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
   return (
     <section className="timeline" aria-label="Interactive history">
       <RangeControl range={range} bounds={bounds()} onNavigate={navigate} onZoom={zoom} />
-      {source === "real" && <div className="environment-status" aria-live="polite">
+      <div className="environment-status" aria-live="polite">
         {environmentFailed ? "Could not refresh outdoor context" :
           environment?.hueStatus && (!environment.hueStatus.ok || Date.now() - (environment.hueStatus.updated ?? 0) > 15 * 60_000) ? "No recent entrance sensor connection" :
           environment && (!environment.firstOutdoor ? "Waiting for the first entrance reading" :
           range.max < environment.firstOutdoor ? `Entrance: history since ${date(environment.firstOutdoor)}` : null)}
         {environment?.weatherStatus && !environment.weatherStatus.ok && <span>Weather not refreshed</span>}
-      </div>}
+      </div>
       <div
         className="plot-shell"
         tabIndex={0}
@@ -686,8 +634,7 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
         }}
       >
         <div ref={host} className="chart" />
-        <WindowInsights key={`${source}:${room}`} source={source} room={room} range={range} plot={plot} updated={meta.updated} />
-        {source === "demo" && <span className="landscape-demo">Simulated data</span>}
+        <WindowInsights key={room} room={room} range={range} plot={plot} updated={meta.updated} />
         <WeatherRibbon data={environment} plot={plot} />
         {plot.width > 0 && daylightBands(environment, {min: plot.min, max: plot.max}).map(({from, to, daylight}) => {
           const span = plot.max - plot.min;
@@ -733,10 +680,9 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
           <i className="heat" />
           Home demand
         </span>
-        {source === "demo" && <span><i className="line" style={{ background: ENERGY_COLOR }} />Simulated consumption</span>}
-        {source === "real" && <button className={"outdoor-toggle " + (showOutdoor ? "active" : "")} aria-pressed={showOutdoor} onClick={() => setShowOutdoor(v => !v)} title="Show measured entrance temperature">
+        <button className={"outdoor-toggle " + (showOutdoor ? "active" : "")} aria-pressed={showOutdoor} onClick={() => setShowOutdoor(v => !v)} title="Show measured entrance temperature">
           <i className="line exterior" />Outdoor{lastOutdoor && <strong>{fmt(lastOutdoor[1])}°</strong>}
-        </button>}
+        </button>
       </div>
       <span className="sr-only" role="status">{status === "loading" ? "Loading interval…" : ""}</span>
       {children}
@@ -745,8 +691,10 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
         range={range}
         selectedId={selectedSession}
         expanded={sessionExpanded}
-        onExpandedChange={setSessionExpanded}
-        onSelect={selectSession}
+        onToggle={id => {
+          if (id === selectedSession && sessionExpanded) setSessionExpanded(false);
+          else selectSession(id);
+        }}
         onZoom={navigate}
         roomName={meta.rooms.find(r => r.id === room)?.name ?? ""}
         failed={sessions.failed}
