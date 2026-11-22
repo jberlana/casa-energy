@@ -72,6 +72,13 @@ of 190 seconds; failures and cooldowns are shown without exposing private provid
 After updating an installation's code, reinstall the web service to copy the new modules as well;
 the existing collectors do not need to be reinstalled.
 
+## Local branding
+
+The web installer can read a `branding.json` file with a `name` field and a 180 × 180
+`apple-touch-icon.png` from the installed `TadoWeb` application support directory. These
+files belong to the local installation. Reinstall the web service to apply changes to the
+header, browser tab and Home Screen metadata.
+
 ## Last refresh and pull to refresh
 
 The menu shows each provider's last successful refresh, including scheduled collectors. Failed

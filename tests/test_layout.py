@@ -1,9 +1,11 @@
 """Installation path contracts tested without touching user services or collecting data."""
+import json
 import os
 from pathlib import Path
 import plistlib
 import shutil
 import subprocess
+from struct import pack
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -32,11 +34,15 @@ class LayoutTests(unittest.TestCase):
             (home/'Library').mkdir()
             project, installed = home/'project', home/'installed'
             (project/'web/dist').mkdir(parents=True)
-            (project/'web/dist/index.html').write_text('<html>synthetic build</html>')
+            template = (REPO/'web/index.html').read_text(encoding='utf-8')
+            (project/'web/dist/index.html').write_text(template, encoding='utf-8')
             (project/'requirements-web.lock').write_text('')
             shutil.copytree(REPO/'backend', project/'backend', ignore=shutil.ignore_patterns('__pycache__'))
             (installed/'venv/bin').mkdir(parents=True)
             (installed/'venv/bin/python').touch()
+            (installed/'branding.json').write_text(json.dumps({'name': 'Fixture & "Room"'}))
+            png_header = b"\x89PNG\r\n\x1a\n" + pack(">I4sII", 13, b"IHDR", 180, 180)
+            (installed/'apple-touch-icon.png').write_bytes(png_header)
             def command(args, **kwargs):
                 return SimpleNamespace(returncode=int(args[:2] == ['/bin/launchctl','print']), stdout='')
             with patch.object(installer,'ROOT',installed), patch.object(installer,'PROJECT',project), \
@@ -48,6 +54,11 @@ class LayoutTests(unittest.TestCase):
             plist=plistlib.loads((home/'Library/LaunchAgents/local.tado-history.web.plist').read_bytes())
             self.assertEqual(plist['ProgramArguments'][1:],['-m','backend.web_server'])
             self.assertEqual(plist['WorkingDirectory'],str(installed))
+            html = (installed/'dist/index.html').read_text(encoding='utf-8')
+            self.assertIn('<title>Fixture &amp; &quot;Room&quot;</title>', html)
+            self.assertIn('rel="apple-touch-icon" sizes="180x180"', html)
+            self.assertEqual((installed/'dist/apple-touch-icon.png').read_bytes(), png_header)
+            self.assertEqual((project/'web/dist/index.html').read_text(encoding='utf-8'), template)
             result=subprocess.run([sys.executable,'-c','from backend.web_server import app; print(app.title)'],
                                   cwd=installed, env={**os.environ,'TADO_WEB_ROOT':str(installed),
                                   'TADO_WEB_DIST':str(installed/'dist')},capture_output=True,text=True,timeout=10)

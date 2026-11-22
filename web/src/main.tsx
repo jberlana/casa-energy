@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  House,
   Thermometer,
   Flame,
   Droplets,
@@ -26,6 +25,9 @@ import {
 } from "./lib/types";
 import "./style.css";
 import { DATA_UPDATED, useAutoRefresh, useDataRevision } from "./lib/refresh";
+
+const appName = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-title"]')?.content || "Casa";
+const appIcon = document.querySelector<HTMLLinkElement>('link[rel="icon"]')?.getAttribute("href") || "/favicon.svg";
 
 function duration(ms: number) {
   const minutes = Math.round(ms / 60_000);
@@ -131,11 +133,9 @@ function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <a className="brand" href="/" aria-label="Casa, home">
-          <span className="brand-mark">
-            <House size={22} strokeWidth={1.8} />
-          </span>
-          Casa
+        <a className="brand" href="/" aria-label={`${appName}, home`}>
+          <img className="brand-mark" src={appIcon} width={28} height={28} alt="" />
+          <span className="brand-title">{appName}</span>
         </a>
         <div className="header-right">
           <RefreshMenu />
