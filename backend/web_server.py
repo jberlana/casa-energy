@@ -10,7 +10,7 @@ import math
 import os
 from pathlib import Path
 import sqlite3
-from .environment_history import read_environment
+from .environment_history import latest_outdoor, read_environment
 from .heating_sessions import analyse
 from .refresh_coordinator import Coordinator
 from .window_detection import Context, detection, guided_annotations
@@ -145,10 +145,15 @@ def metadata(source: str = "real"):
                           "observed": ms(last["timestamp"]) if last else None})
         times = db.execute("SELECT min(timestamp),max(timestamp) FROM samples").fetchone()
         updated = db.execute("SELECT max(fetched_at) FROM reports").fetchone()[0]
-        now = int(datetime.now(timezone.utc).timestamp() * 1000)
-        return {"source": source, "start": ms(times[0]) if times[0] else now - DAY,
-                "latest": ms(times[1]) if times[1] else None, "end": now,
-                "updated": ms(updated) if updated else None, "rooms": rooms, "sampleMinutes": 15}
+    now = int(datetime.now(timezone.utc).timestamp() * 1000)
+    try:
+        outdoor = latest_outdoor(now)
+    except (OSError, sqlite3.Error):
+        outdoor = None  # Outdoor history is optional; keep the indoor history available.
+    return {"source": source, "start": ms(times[0]) if times[0] else now - DAY,
+            "latest": ms(times[1]) if times[1] else None, "end": now,
+            "updated": ms(updated) if updated else None, "rooms": rooms, "sampleMinutes": 15,
+            "outdoor": outdoor}
 
 
 def real_data(db, room, start, end):

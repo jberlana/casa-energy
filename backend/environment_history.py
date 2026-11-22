@@ -186,6 +186,20 @@ def collect_weather(db, now):
                     set_state(db, "archive_through", str(end))
 
 
+def latest_outdoor(now, root=ROOT):
+    """Return the latest valid observation, independent of the chart interval."""
+    path = root / "environment.sqlite3"
+    if not path.is_file():
+        return None
+    with closing(sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True, timeout=1)) as db:
+        row = db.execute(
+            "SELECT temperature, timestamp FROM outdoor WHERE valid=1 AND temperature IS NOT NULL "
+            "AND timestamp<=? ORDER BY timestamp DESC LIMIT 1",
+            (now,),
+        ).fetchone()
+    return {"temperature": row[0], "observed": row[1]} if row else None
+
+
 def read_environment(start, end, root=ROOT, now=None):
     now = int(time.time()*1000) if now is None else now
     end = min(end, now)

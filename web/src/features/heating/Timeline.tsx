@@ -643,7 +643,6 @@ export function Timeline({ meta, room, onView, children }: Props) {
       mid = (range.max + range.min) / 2;
     navigate(mid - half, mid + half);
   };
-  const lastOutdoor = environment?.outdoor.filter(s => s[0] >= range.min && s[0] <= range.max).at(-1);
   return (
     <section className="timeline" aria-label="Interactive history">
       <RangeControl range={range} bounds={bounds()} onNavigate={navigate} onZoom={zoom} />
@@ -705,7 +704,7 @@ export function Timeline({ meta, room, onView, children }: Props) {
           Home demand
         </span>
         <button className={"outdoor-toggle " + (showOutdoor ? "active" : "")} aria-pressed={showOutdoor} onClick={() => setShowOutdoor(v => !v)} title="Show measured entrance temperature">
-          <i className="line exterior" />Outdoor{lastOutdoor && <strong>{fmt(lastOutdoor[1])}°</strong>}
+          <i className="line exterior" />Outdoor
         </button>
       </div>
       <span className="sr-only" role="status">{status === "loading" ? "Loading interval…" : ""}</span>

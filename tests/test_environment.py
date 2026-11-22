@@ -67,6 +67,18 @@ class EnvironmentTests(unittest.TestCase):
         self.assertEqual(max(values), 40)
         self.assertTrue(any(s[1] is None for s in result["outdoor"]))
 
+    def test_latest_outdoor_ignores_future_and_invalid_observations(self):
+        with self.db:
+            self.db.executemany("INSERT INTO outdoor VALUES (?,?,?,?,?)", [
+                (self.base, 9, None, "Entrance", 1),
+                (self.base + 60_000, 0, None, "Entrance", 1),
+                (self.base + 120_000, None, None, "Entrance", 0),
+                (self.base + 240_000, 18, None, "Entrance", 1),
+            ])
+        self.assertEqual(env.latest_outdoor(self.base + 180_000, self.root),
+                         {"temperature": 0, "observed": self.base + 60_000})
+        self.assertIsNone(env.latest_outdoor(self.base - 1, self.root))
+
     def test_reads_do_not_mutate_database_or_call_external_services(self):
         env.store_weather(self.db, self.payload(), "test", self.base+env.HOUR)
         before = (self.root / "environment.sqlite3").read_bytes()

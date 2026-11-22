@@ -12,6 +12,7 @@ export interface Meta {
   updated: number | null;
   sampleMinutes: number;
   rooms: Room[];
+  outdoor: { temperature: number; observed: number } | null;
 }
 export interface Interval {
   series: string;

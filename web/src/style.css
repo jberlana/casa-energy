@@ -39,7 +39,10 @@ summary::-webkit-details-marker { display: none; }
   border-bottom: 1px solid var(--line);
 }
 .brand { display: inline-flex; align-items: center; min-width: 0; gap: 9px; font-size: 22px; font-weight: 700; letter-spacing: -.8px; }
+.brand-copy { display: flex; flex-direction: column; min-width: 0; gap: 2px; line-height: 1.08; }
 .brand-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.brand-outdoor { color: #2e6881; font-size: 12px; font-weight: 450; letter-spacing: 0; line-height: 1.2; white-space: nowrap; }
+.brand-outdoor strong { font-weight: 650; font-variant-numeric: tabular-nums; }
 .brand-mark { display: block; flex-shrink: 0; width: 28px; height: 28px; border-radius: 7px; }
 .header-right { display: flex; flex-shrink: 0; align-items: center; gap: 6px; }
 .refresh-menu { position: relative; }
@@ -131,7 +134,6 @@ h1 { font-size: clamp(30px, 3vw, 43px); letter-spacing: -.055em; font-weight: 62
 .outdoor-toggle:hover { background: #eaf0f4; }
 .outdoor-toggle:not(.active) { color: var(--muted); text-decoration: line-through; }
 .outdoor-toggle:not(.active) i { opacity: .4; }
-.outdoor-toggle strong { font-weight: 650; font-variant-numeric: tabular-nums; }
 .environment-status { display: flex; flex-wrap: wrap; gap: 10px; color: #976236; font-size: 12px; }
 .environment-status:not(:empty) { padding: 4px; }
 .plot-shell { position: relative; overflow: clip; margin-inline: calc(-1 * var(--gutter)); }

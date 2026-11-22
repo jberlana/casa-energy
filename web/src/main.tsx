@@ -86,6 +86,8 @@ function App() {
     };
   }, [retry]);
   const selected = meta?.rooms.find((r) => r.id === room);
+  const outdoor = meta?.outdoor;
+  const outdoorLabel = meta && outdoor && meta.end - outdoor.observed > 15 * 60_000 ? "Last outdoor reading" : "Outdoor";
   const [stats, setStats] = useState<{
     room: number;
     start: number;
@@ -133,9 +135,14 @@ function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <a className="brand" href="/" aria-label={`${appName}, home`}>
+        <a className="brand" href="/" aria-label={`${appName}, home`} aria-describedby={outdoor ? "brand-outdoor" : undefined}>
           <img className="brand-mark" src={appIcon} width={28} height={28} alt="" />
-          <span className="brand-title">{appName}</span>
+          <span className="brand-copy">
+            <span className="brand-title">{appName}</span>
+            {outdoor && <span className="brand-outdoor" id="brand-outdoor" title={date(outdoor.observed)}>
+              {outdoorLabel} <strong>{fmt(outdoor.temperature)} °C</strong>
+            </span>}
+          </span>
         </a>
         <div className="header-right">
           <RefreshMenu />
