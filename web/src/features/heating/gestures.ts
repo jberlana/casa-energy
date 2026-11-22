@@ -1,5 +1,5 @@
 import type Highcharts from "highcharts/highstock";
-import { type Range } from "./types";
+import { type Range } from "../../lib/types";
 
 // Touch handling belongs to the chart, independent of React renders and fetches.
 // Horizontal gestures are captured; vertical scrolling remains the browser's job.

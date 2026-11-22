@@ -23,11 +23,11 @@ import {
   type Meta,
   type Range,
   type Source,
-} from "./types";
+} from "../../lib/types";
 import { useSessions, SessionDetail, euros } from "./Sessions";
-import { useDataRevision } from "./refresh";
+import { useDataRevision } from "../../lib/refresh";
 import { installGestures } from "./gestures";
-import { useEnvironment, WeatherRibbon, condition, daylightBands, type Plot } from "./Weather";
+import { useEnvironment, WeatherRibbon, condition, daylightBands, type Plot } from "../environment/Weather";
 
 Highcharts.setOptions({
   time: { timezone: "Europe/Madrid" },

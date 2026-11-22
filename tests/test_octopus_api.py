@@ -7,7 +7,7 @@ import time
 import unittest
 from unittest.mock import Mock, patch
 
-from octopus_api import APIError, Client, NoRedirect, OPERATIONS, atomic_json
+from backend.octopus_api import APIError, Client, NoRedirect, OPERATIONS, atomic_json
 
 
 class OctopusClientTests(unittest.TestCase):

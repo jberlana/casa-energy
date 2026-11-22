@@ -11,7 +11,7 @@ import time
 
 LABEL = "local.tado-history.web"
 ROOT = Path.home() / "Library/Application Support/TadoWeb"
-PROJECT = Path(__file__).resolve().parent
+PROJECT = Path(__file__).resolve().parents[2]
 TAILSCALE = "/Applications/Tailscale.app/Contents/MacOS/Tailscale"
 
 
@@ -35,10 +35,10 @@ def main():
         time.sleep(.2)
     else:
         raise SystemExit("Previous web service is still stopping; retry installation shortly")
-    shutil.copy2(PROJECT / "web_server.py", root / "web_server.py")
-    shutil.copy2(PROJECT / "refresh_coordinator.py", root / "refresh_coordinator.py")
-    shutil.copy2(PROJECT / "environment_history.py", root / "environment_history.py")
-    shutil.copy2(PROJECT / "heating_sessions.py", root / "heating_sessions.py")
+    package = root / "backend"
+    package.mkdir(exist_ok=True)
+    for name in ("__init__.py", "web_server.py", "refresh_coordinator.py", "environment_history.py", "heating_sessions.py"):
+        shutil.copy2(PROJECT / "backend" / name, package / name)
     verified = PROJECT / "output/octopus/verified-invoices.json"
     if verified.exists():
         shutil.copy2(verified, root / "verified-invoices.json")
@@ -53,7 +53,7 @@ def main():
             hostname = json.loads(result.stdout).get("Self", {}).get("DNSName", "").rstrip(".")
     plist = {
         "Label": LABEL,
-        "ProgramArguments": [str(env / "bin/python"), str(root / "web_server.py")],
+        "ProgramArguments": [str(env / "bin/python"), "-m", "backend.web_server"],
         "WorkingDirectory": str(root), "RunAtLoad": True, "KeepAlive": True,
         "ProcessType": "Background", "ThrottleInterval": 10, "ExitTimeOut": 15,
         "EnvironmentVariables": {"PYTHONDONTWRITEBYTECODE": "1", "PYTHONUNBUFFERED": "1",

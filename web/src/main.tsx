@@ -16,8 +16,8 @@ import {
   Blocks,
   Monitor,
 } from "lucide-react";
-import { Invoices } from "./Sessions";
-import { Timeline } from "./Timeline";
+import { Invoices } from "./features/heating/Sessions";
+import { Timeline } from "./features/heating/Timeline";
 import {
   date,
   fmt,
@@ -26,9 +26,9 @@ import {
   type Meta,
   type Range,
   type Source,
-} from "./types";
+} from "./lib/types";
 import "./style.css";
-import { DATA_UPDATED, useAutoRefresh, useDataRevision } from "./refresh";
+import { DATA_UPDATED, useAutoRefresh, useDataRevision } from "./lib/refresh";
 
 function duration(ms: number) {
   const minutes = Math.round(ms / 60_000);

@@ -7,7 +7,7 @@ import subprocess
 import sys
 import time
 
-from environment_history import ROOT, AUTH
+from backend.environment_history import ROOT, AUTH
 
 
 def main():
@@ -25,7 +25,7 @@ def main():
     else:
         raise SystemExit("El recolector anterior todavía está deteniéndose")
     script = ROOT / "environment_history.py"
-    shutil.copy2(Path(__file__).with_name("environment_history.py"), script)
+    shutil.copy2(Path(__file__).resolve().parents[2] / "backend/environment_history.py", script)
     path = Path.home() / "Library/LaunchAgents" / (label + ".plist")
     path.parent.mkdir(exist_ok=True)
     path.write_bytes(plistlib.dumps({

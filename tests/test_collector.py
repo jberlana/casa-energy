@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-import tado_history as t
+from backend import tado_history as t
 
 
 def report(end="2026-11-22T10:00:00Z"):
