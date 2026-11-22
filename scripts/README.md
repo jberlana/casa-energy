@@ -24,3 +24,7 @@ those fixed collector paths, so a source-directory reorganization does not chang
 
 Keep these tools idempotent and bounded. Never add app behavior, credentials or sample measurements
 to an installer. Test generated paths and manifests in temporary directories before real installation.
+
+Guided ventilation experiments are a runtime CLI (`python -m backend.window_calibration`), not a
+service installer. Follow [the operator protocol](../docs/ventilation.md); no calibration daemon is
+installed and ordinary builds/tests never contact Tado.

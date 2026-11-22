@@ -1,4 +1,4 @@
-"""Local, read-only history API. Collection is delegated to bounded subprocesses; no credentials in responses."""
+"""Local history API. Climate reads are read-only; annotations use a separate private store."""
 from __future__ import annotations
 
 from contextlib import contextmanager
@@ -13,6 +13,10 @@ import sqlite3
 from .environment_history import read_environment
 from .heating_sessions import analyse
 from .refresh_coordinator import Coordinator
+from .window_detection import Context, detection, guided_annotations
+from .window_store import WindowStore
+from pydantic import BaseModel, ConfigDict, Field
+from typing import Literal
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -31,6 +35,7 @@ DEMO_START = DEMO_END - 180 * DAY
 ROOM_NAMES = {1: "Salón", 3: "Dormitorio", 2: "Habitación 2", 5: "Despacho"}
 HEAT_LEVELS = {"LOW", "MEDIUM", "HIGH", "HEATING"}
 refresh_coordinator = Coordinator()
+window_store = WindowStore(Path(os.environ.get('TADO_WEB_ROOT', Path.home() / 'Library/Application Support/TadoWeb')))
 app = FastAPI(title="Casa · historial local", docs_url=None, redoc_url=None, openapi_url=None)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=[
@@ -344,6 +349,98 @@ def invoices():
         raise HTTPException(503, "Las facturas verificadas no están disponibles") from None
     return {"invoices": sorted(rows, key=lambda r:r['period_start'], reverse=True),
             "resolution": "billing_period", "completeHistory": False}
+
+
+def demo_window_data(room, start, end):
+    # Match the history's normal resolution; do not train on the minute-level demo chart.
+    samples, events, previous = [], [], {}
+    for t in range(math.ceil(max(start, DEMO_START) / (15 * MINUTE)) * 15 * MINUTE, min(end, DEMO_END) + 1, 15 * MINUTE):
+        sample, target, heat = demo_sample(t, room)
+        samples.append(sample)
+        for series, value in [('connected', True), ('callForHeat', heat), ('settings', {'power': 'ON', 'temperature': {'celsius': target}})]:
+            if series not in previous or previous[series]['value'] != value:
+                if series in previous:
+                    previous[series]['end'] = t
+                previous[series] = {'series': series, 'value': value, 'start': t, 'end': min(end, DEMO_END)}
+                events.append(previous[series])
+    return samples, events
+
+
+@app.get('/api/window-events')
+def window_events(room: int, start: int, end: int, source: str = 'real'):
+    validate_source(source)
+    window(start, end)
+    # UTC day-aligned padding makes identity independent of zoom/pan and supplies cooling baselines.
+    a, b = max(0, start // DAY * DAY - 31 * DAY), (end // DAY + 2) * DAY
+    snapshots, peers, outdoor, trial_samples, trial_events = [], [], [], [], []
+    try:
+        labels = window_store.labels(source, room)
+        trials = window_store.experiments(room) if source == 'real' else []
+        if source == 'demo':
+            if room not in ROOM_NAMES:
+                raise HTTPException(404, 'Habitación desconocida')
+            samples, events = demo_window_data(room, a, b)
+            peers = [demo_window_data(r, a, b)[0] for r in ROOM_NAMES if r != room]
+        else:
+            with database() as db:
+                samples, events = real_data(db, room, a, b)
+                for trial in trials:
+                    if trial['opened'] and trial['closed']:
+                        readings, states = real_data(db, room, trial['opened'] - 20 * MINUTE, trial['closed'] + 20 * MINUTE)
+                        trial_samples.extend(readings)
+                        trial_events.extend(states)
+                home = db.execute('SELECT home_id FROM rooms WHERE room_id=? AND active=1', (room,)).fetchone()[0]
+                # Read only the fields needed by the detector, never expose raw provider responses.
+                snapshots = [{'at': ms(row[0]), 'openWindow': json.loads(row[1]).get('openWindow')}
+                             for row in db.execute('SELECT observed_at,value_json FROM snapshots WHERE home_id=? AND room_id=? AND observed_at>=? AND observed_at<=? ORDER BY observed_at',
+                                                   (home, room, iso(a), iso(b)))]
+                for (rid,) in db.execute('SELECT room_id FROM rooms WHERE home_id=? AND active=1 AND room_id!=?', (home, room)):
+                    peer_samples, peer_events = real_data(db, rid, a, b)
+                    connected = Context(peer_events)
+                    peers.append([[t, temp if connected.at('connected', t) is True else None, humidity]
+                                  for t, temp, humidity in peer_samples])
+            try:
+                context = read_environment(a, b)
+                # Weather is the exterior reference; an entrance sensor is not assumed outdoors.
+                outdoor = [[r['timestamp'], r['temperature']] for r in context['weather']]
+            except (sqlite3.Error, OSError):
+                pass  # Optional context must not suppress an otherwise observable candidate.
+        confirmed = guided_annotations(trials, sorted({s[0]: s for s in trial_samples}.values()), normalize_events(trial_events))
+        result = detection(room, samples, events, start, end, snapshots=snapshots, peers=peers,
+                           outdoor=outdoor, labels=labels, confirmed=confirmed)
+        return {'source': source, 'room': room, 'start': start, 'end': end, **result}
+    except (sqlite3.Error, ValueError, OSError):
+        raise HTTPException(503, 'No se pudo analizar la ventilación') from None
+
+
+class WindowFeedback(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    source: Literal['real', 'demo']
+    room: int = Field(gt=0)
+    eventId: str = Field(min_length=1, max_length=100)
+    start: int = Field(ge=0)
+    end: int = Field(ge=0)
+    label: Literal['yes', 'no', 'unknown']
+
+
+@app.post('/api/window-feedback')
+def window_feedback(request: Request, body: WindowFeedback):
+    origin = urlsplit(request.headers.get('origin', ''))
+    if (request.headers.get('x-casa-feedback') != '1' or origin.scheme not in ('http', 'https')
+            or origin.netloc != request.headers.get('host')
+            or request.headers.get('sec-fetch-site', 'same-origin') != 'same-origin'):
+        raise HTTPException(403, 'Origen no permitido')
+    if body.end < body.start or body.end - body.start > DAY:
+        raise HTTPException(422, 'Intervalo de evento no válido')
+    data = window_events(body.room, max(0, body.start - MINUTE), body.end + MINUTE, body.source)
+    event = next((e for e in data['events'] if e['id'] == body.eventId), None)
+    if event is None:
+        raise HTTPException(409, 'El evento ha cambiado. Actualiza el detalle.')
+    try:
+        window_store.save_label(body.source, body.room, event, body.label)
+    except (sqlite3.Error, ValueError, OSError):
+        raise HTTPException(503, 'No se pudo guardar la confirmación') from None
+    return {'saved': True}
 
 
 if DIST.exists():

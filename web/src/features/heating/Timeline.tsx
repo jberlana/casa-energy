@@ -25,6 +25,7 @@ import {
   type Source,
 } from "../../lib/types";
 import { useSessions, SessionDetail, euros } from "./Sessions";
+import { WindowInsights } from "./Windows";
 import { useDataRevision } from "../../lib/refresh";
 import { installGestures } from "./gestures";
 import { useEnvironment, WeatherRibbon, condition, daylightBands, type Plot } from "../environment/Weather";
@@ -725,6 +726,7 @@ export function Timeline({ meta, room, source, onView, children }: Props) {
         }}
       >
         <div ref={host} className="chart" />
+        <WindowInsights key={`${source}:${room}`} source={source} room={room} range={range} plot={plot} updated={meta.updated} />
         {source === "demo" && <span className="landscape-demo">Datos simulados</span>}
         <WeatherRibbon data={environment} plot={plot} />
         {plot.width > 0 && daylightBands(environment, {min: plot.min, max: plot.max}).map(({from, to, daylight}) => {
