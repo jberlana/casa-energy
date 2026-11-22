@@ -1,7 +1,7 @@
-import { useDataRevision } from "./refresh";
+import { useDataRevision } from "../../lib/refresh";
 import { useEffect, useState } from "react";
 import { Sun, Moon, CloudSun, CloudMoon, Cloud, CloudFog, CloudDrizzle, CloudRain, CloudSnow, CloudLightning, CircleHelp, X } from "lucide-react";
-import { DAY, HOUR, date, fmt, get, type Range, type Source } from "./types";
+import { DAY, HOUR, date, fmt, get, type Range, type Source } from "../../lib/types";
 
 export interface WeatherHour {
   timestamp: number;
