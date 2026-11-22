@@ -19,6 +19,9 @@ runtime defaults; do not run collectors without configuring and authorizing the 
 | `web_server` | Local read API and source validation | Delegates refresh; does not expose credentials |
 | `refresh_coordinator` | Staleness, single flight and bounded processes | Fixed installed collector subprocesses |
 | `heating_sessions` | Union of demand and thermal observations | None |
+| `window_detection` | Pure ventilation inference and evidence | None |
+| `window_store` | Private feedback and bounded calibration records | None |
+| `window_calibration` | Explicit, expiring guided experiments and holdout reports | Tado room reads and auth refresh only |
 
 Importing a module must not collect data, bind a port or install a service. Entrypoints belong under
 `if __name__ == '__main__'`. Keep collector modules standalone-compatible because macOS installers
@@ -27,3 +30,6 @@ copy them individually. The installed web service uses the package and module en
 Use UTC instants in storage and explicit local calendar boundaries for aggregations. Preserve missing
 coverage; a disconnected sensor is not an off state. See [architecture](../docs/architecture.md)
 and [tests](../tests/README.md) before changing persistence or session semantics.
+
+See [ventilation](../docs/ventilation.md) before running a guided experiment. Reading the web never
+starts one. Historical inference and the experiment store do not modify the climate database.

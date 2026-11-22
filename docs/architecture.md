@@ -67,3 +67,8 @@ The present modules are intentionally small in number. If `web_server` grows, se
 resource while preserving response contracts. If weather and Hue grow independently, split their
 collectors while retaining independent write coordination. Do not introduce new services or a message
 bus until their operational cost is justified by an actual requirement.
+
+Ventilation is a pure historical detector with optional context. Feedback writes to a separate,
+bounded insights database; the climate history remains read-only to the web. Guided calibration is
+an explicit CLI session, never a page-open side effect. It shares collector locking/quota and has a
+persisted deadline. See [ventilation](ventilation.md) for contracts and rollback.

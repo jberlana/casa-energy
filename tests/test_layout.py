@@ -19,7 +19,7 @@ class LayoutTests(unittest.TestCase):
     def test_module_entrypoints_show_help_without_config_or_network(self):
         with tempfile.TemporaryDirectory() as directory:
             environment = {**os.environ, 'HOME': directory}
-            for module in ['backend.tado_history', 'backend.octopus_api']:
+            for module in ['backend.tado_history', 'backend.octopus_api', 'backend.window_calibration']:
                 result = subprocess.run([sys.executable, '-m', module, '--help'], cwd=REPO,
                                         env=environment, capture_output=True, text=True, timeout=10)
                 self.assertEqual(result.returncode, 0, result.stderr)

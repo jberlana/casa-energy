@@ -13,6 +13,7 @@ Run from the repository root. The development proxy points to the local Python A
 
 - `src/main.tsx`: app composition, selected source/room and shared range summary.
 - `src/features/heating/`: chart lifecycle, touch gestures, sessions and invoice context.
+  `Windows.tsx` adds small ventilation markers and an on-demand detail; it does not remount the chart.
 - `src/features/environment/`: exterior/weather data hook and weather presentation.
 - `src/lib/`: common API types, time formatting, fetching and refresh invalidation.
 - `src/style.css`: shared styles; split by feature only when that improves ownership.
